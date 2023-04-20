@@ -46,3 +46,8 @@ Game& Game::getInstance()
 {
 	return *g_gameInstance;
 }
+
+GLFWwindow* Game::getWindow()
+{
+	return m_window;
+}

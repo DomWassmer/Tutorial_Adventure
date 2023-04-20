@@ -5,7 +5,6 @@
 #include <memory>
 
 #include "Scene.h"
-#include "Renderer2D.h"
 #include "Renderer3D.h"
 #include "Settings.h"
 
@@ -20,6 +19,7 @@ public:
 	void cleanup();
 
 	static Game& getInstance();
+	GLFWwindow* getWindow();
 private:
 	std::unique_ptr<Renderer3D> m_renderer3D;
 	std::shared_ptr<Scene> m_activeScene;
