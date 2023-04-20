@@ -57,15 +57,13 @@ public:
 	bool m_framebufferResized = false;
 
 public:
-	void run();
+	void init();
+	void generateSceneRessources();
+	void render();
+	void cleanup();
 	const VkInstance& GetInstance() { return m_instance; }
 
 private:
-	void initWindow();
-	void initVulkan();
-	void mainLoop();
-	void cleanup();
-
 	// initVulkan functions
 	void createInstance();
 	//void setupDebugMessenger();
@@ -130,9 +128,9 @@ private:
 	const int MAX_FRAMES_IN_FLIGHT = 2;
 	uint32_t m_currentFrame = 0;
 
+	bool m_init = false;
 	int m_width = 800;
 	int m_height = 600;
-	GLFWwindow* m_window;
 
 	VkInstance m_instance;
 	VkSurfaceKHR m_surface;

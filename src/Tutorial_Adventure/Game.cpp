@@ -19,12 +19,19 @@ void Game::init()
 		throw std::runtime_error("GLFW: failed to create window!");
 	}
 
+	m_renderer3D = std::make_unique<Renderer3D>(Renderer3D());
+	m_renderer3D->init();
+
 	m_activeScene = Scene::generateScene(Scene::SceneType::Level1);
+	m_renderer3D->generateSceneRessources();
 	m_activeScene->printCellInfo(0);
 }
 
 void Game::cleanup()
 {
+	m_renderer3D->cleanup();
+
+	glfwDestroyWindow(m_window);
 	glfwTerminate();
 
 	g_gameInstance = nullptr;
@@ -40,6 +47,7 @@ void Game::run()
 
 	glfwPollEvents();
 	//glfwGetWindowSize(m_window, &m_width, &m_height);
+	m_renderer3D->render();
 }
 
 Game& Game::getInstance()

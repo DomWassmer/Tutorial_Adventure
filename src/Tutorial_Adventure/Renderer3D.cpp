@@ -1,4 +1,5 @@
 #include "Renderer3D.h"
+#include "Game.h"
 
 #include <stdexcept>
 #include <iostream>
@@ -58,33 +59,21 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescription
 	return attributeDescriptions;
 }
 
-void Renderer3D::run()
+void Renderer3D::init()
 {
-	initWindow();
-	initVulkan();
-	mainLoop();
-	cleanup();
-}
-
-void Renderer3D::initWindow()
-{
-	glfwInit();
-
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	m_window = glfwCreateWindow(m_width, m_height, "Vulkan from scratch", nullptr, nullptr);
-	glfwSetWindowUserPointer(m_window, this);
-	glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
-}
-
-
-void Renderer3D::initVulkan()
-{
+	if (m_init)
+		return;
+	glfwSetWindowUserPointer(Game::getInstance().getWindow(), this);
+	glfwSetFramebufferSizeCallback(Game::getInstance().getWindow(), framebufferResizeCallback);
 	createInstance();
 	//setupDebugMessenger();
 	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
+}
+
+void Renderer3D::generateSceneRessources()
+{
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
@@ -105,15 +94,10 @@ void Renderer3D::initVulkan()
 	createSyncObjects();
 }
 
-void Renderer3D::mainLoop()
+void Renderer3D::render()
 {
-	while (!glfwWindowShouldClose(m_window))
-	{
-		glfwPollEvents();
-		glfwGetWindowSize(m_window, &m_width, &m_height);
-		drawFrame();
-	}
-
+	glfwGetWindowSize(Game::getInstance().getWindow(), &m_width, &m_height);
+	drawFrame();
 	// or: vkQueueWaitIdle(m_device);
 	vkDeviceWaitIdle(m_device);
 }
@@ -160,10 +144,6 @@ void Renderer3D::cleanup()
 
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	vkDestroyInstance(m_instance, nullptr);
-
-	glfwDestroyWindow(m_window);
-
-	glfwTerminate();
 }
 
 void Renderer3D::createInstance()
@@ -233,7 +213,7 @@ void Renderer3D::createInstance()
 
 void Renderer3D::createSurface()
 {
-	if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
+	if (glfwCreateWindowSurface(m_instance, Game::getInstance().getWindow(), nullptr, &m_surface) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create window surface!");
 }
 
@@ -442,7 +422,7 @@ VkExtent2D Renderer3D::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabili
 	else
 	{
 		int width, height;
-		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
 
 		VkExtent2D actualExtent = { (uint32_t)width, (uint32_t)height };
 		actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
@@ -602,8 +582,8 @@ void Renderer3D::createDescriptorSetLayout()
 
 void Renderer3D::createGraphicsPipeline()
 {
-	auto vertShaderCode = readShaderFromFile("./shaders/vert.spv");
-	auto fragShaderCode = readShaderFromFile("./shaders/frag.spv");
+	auto vertShaderCode = readShaderFromFile("../../../shaders/vert.spv");
+	auto fragShaderCode = readShaderFromFile("../../../shaders/frag.spv");
 #ifdef _DEBUG
 	std::cout << "Size of vert shader: " << vertShaderCode.size() << " bytes"
 		<< "\nSize of frag shader: " << fragShaderCode.size() << " bytes" << std::endl;
@@ -1033,10 +1013,10 @@ void Renderer3D::recreateSwapChain()
 {
 	// Handle window minimization by doing nothing in that time
 	int width = 0, height = 0;
-	glfwGetFramebufferSize(m_window, &width, &height);
+	glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
 	while (width == 0 || height == 0)
 	{
-		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
 		glfwWaitEvents();
 	}
 
