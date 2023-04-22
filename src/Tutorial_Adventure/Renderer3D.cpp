@@ -19,44 +19,13 @@ const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validati
 #endif // DEBUG
 std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-#define ASSET_PATH "E:/dev/VulkanRenderingPractice/assets/"
+#define ASSET_PATH "../../../assets/"
 
 // Can't be a member function because compiler changes member function to non-member function func(this, args)
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
 	auto app = reinterpret_cast<Renderer3D*>(glfwGetWindowUserPointer(window));
 	app->m_framebufferResized = true;
-}
-
-VkVertexInputBindingDescription Vertex::getBindingDescription()
-{
-	VkVertexInputBindingDescription bindingDescription{};
-	bindingDescription.binding = 0;
-	bindingDescription.stride = sizeof(Vertex);
-	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	return bindingDescription;
-}
-
-std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions()
-{
-	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-	attributeDescriptions[0].binding = 0;
-	attributeDescriptions[0].location = 0;
-	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-	attributeDescriptions[1].binding = 0;
-	attributeDescriptions[1].location = 1;
-	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-	attributeDescriptions[2].binding = 0;
-	attributeDescriptions[2].location = 2;
-	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-	return attributeDescriptions;
 }
 
 void Renderer3D::init()
@@ -82,16 +51,21 @@ void Renderer3D::generateSceneRessources()
 	createCommandPool();
 	createDepthRessources();
 	createFramebuffers();
-	createTextureImage();
-	createTextureImageView();
 	createTextureSampler();
-	createVertexBuffer();
-	createIndexBuffer();
 	createUniformBuffers();
-	createDescriptorPool();
-	createDescriptorSets();
 	createCommandBuffers();
 	createSyncObjects();
+	
+	// Load all texture ressources for current scene
+	createTextures();
+
+	// Load all vertex and buffer ressources for current scene
+	createVertexBuffers();
+	createIndexBuffer();
+
+	// Load all descriptor ressources for current scene
+	createDescriptorPool();
+	createDescriptorSets();
 }
 
 void Renderer3D::render()
@@ -107,10 +81,7 @@ void Renderer3D::cleanup()
 	// Order important for some of the operations
 	cleanupSwapChain();
 
-	vkDestroySampler(m_device, m_textureSampler, nullptr);
-	vkDestroyImageView(m_device, m_textureImageView, nullptr);
-	vkDestroyImage(m_device, m_textureImage, nullptr);
-	vkFreeMemory(m_device, m_textureImageMemory, nullptr);
+	cleanupSceneRessources();
 
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
@@ -778,43 +749,13 @@ void Renderer3D::createDepthRessources()
 	}
 }
 
-void Renderer3D::createTextureImage()
+void Renderer3D::createTextures()
 {
-	int texWidth, texHeight, texChannels;
-	std::string textureFile = ASSET_PATH "Sprite-Skeletons.png";
-	stbi_uc* pixels = stbi_load(textureFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	VkDeviceSize imageSize = texWidth * texHeight * 4;
-	if (!pixels)
-		throw std::runtime_error("STB: failed to load texture image!");
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(m_device, stagingBufferMemory, 0, imageSize, 0, &data);
-	memcpy(data, pixels, (size_t)imageSize);
-	vkUnmapMemory(m_device, stagingBufferMemory);
-	stbi_image_free(pixels);
-
-	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		m_textureImage, m_textureImageMemory);
-	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, m_textureImage, (uint32_t)texWidth, (uint32_t)texHeight);
-	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
-}
-
-void Renderer3D::createTextureImageView()
-{
-	m_textureImageView = createImageView(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	std::string textureFile = ASSET_PATH "Sprite Floor Tiles.png";
+	createTextureImage(textureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
+		m_sceneRessources.staticTileTextureImageMemory);
+	m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
+		VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void Renderer3D::createTextureSampler()
@@ -839,36 +780,21 @@ void Renderer3D::createTextureSampler()
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
-	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSampler) != VK_SUCCESS)
+	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSamplerNearest) != VK_SUCCESS)
 		throw std::runtime_error("VUlkan: failed to create texture sampler!");
 }
 
-void Renderer3D::createVertexBuffer()
+void Renderer3D::createVertexBuffers()
 {
-	// Important note: vkAllocateMemory to allocate memory in the GPU should not be used on individual buffers
-	// but rather multiple buffers should be placed into one with offsets
-	VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		stagingBuffer, stagingBufferMemory);
+	// Static tile vertex buffer creation
+	
+	for (size_t i = 0; i < m_activeScene)
 
-	void* data;
-	vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(m_device, stagingBufferMemory);
-
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
-
-	copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
-
-	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * m_vertices.size();
+	createVertexBuffer()
 }
 
-void Renderer3D::createIndexBuffer()
+void Renderer3D::createIndexBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
 
@@ -949,8 +875,8 @@ void Renderer3D::createDescriptorSets()
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_textureImageView;
-		imageInfo.sampler = m_textureSampler;
+		imageInfo.imageView = m_sceneRessources.staticTileTextureImageView;
+		imageInfo.sampler = m_textureSamplerNearest;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1050,6 +976,17 @@ void Renderer3D::cleanupSwapChain()
 	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 }
 
+void Renderer3D::cleanupSceneRessources()
+{
+	vkDestroySampler(m_device, m_textureSamplerNearest, nullptr);
+
+	// Cleanup static tile ressources
+	vkDestroyImageView(m_device, m_sceneRessources.staticTileTextureImageView, nullptr);
+	vkDestroyImage(m_device, m_sceneRessources.staticTileTextureImage, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileTextureImageMemory, nullptr);
+
+}
+
 //
 // Helper Functions
 //
@@ -1120,7 +1057,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	scissor.extent = m_swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = { m_vertexBuffer };
 	VkDeviceSize offsets[] = { 0 };
@@ -1403,6 +1340,64 @@ VkFormat Renderer3D::findDepthFormat()
 bool Renderer3D::hasStencilComponent(VkFormat format)
 {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+void Renderer3D::createTextureImage(const char* textureFile, VkImage& textureImage, VkDeviceMemory& textureImageMemory)
+{
+	int texWidth, texHeight, texChannels;
+	stbi_uc* pixels = stbi_load(textureFile, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	VkDeviceSize imageSize = texWidth * texHeight * 4;
+	if (!pixels)
+		throw std::runtime_error("STB: failed to load texture image!");
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_device, stagingBufferMemory, 0, imageSize, 0, &data);
+	memcpy(data, pixels, (size_t)imageSize);
+	vkUnmapMemory(m_device, stagingBufferMemory);
+	stbi_image_free(pixels);
+
+	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		textureImage, textureImageMemory);
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, textureImage, (uint32_t)texWidth, (uint32_t)texHeight);
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+}
+
+void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer, 
+	VkDeviceMemory vertexBufferMemory)
+{
+	// Important note: vkAllocateMemory to allocate memory in the GPU should not be used on individual buffers
+	// but rather multiple buffers should be placed into one with offsets
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, verticesData, (size_t)bufferSize);
+	vkUnmapMemory(m_device, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+
+	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
 }
 
 //

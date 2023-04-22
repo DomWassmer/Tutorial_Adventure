@@ -16,15 +16,7 @@
 #include <vulkan/vulkan.h>
 
 #include "Scene.h"
-
-struct Vertex {
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	static VkVertexInputBindingDescription getBindingDescription();
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
-};
+#include "Vertex.h"
 
 // MVP: Model-View-Projection Matrices
 struct UniformBufferObject {
@@ -53,8 +45,22 @@ public:
 		std::vector<VkPresentModeKHR> presentModes;
 	};
 
+	struct SceneRessources {
+		// StaticTileRessources
+		VkImage staticTileTextureImage;
+		VkDeviceMemory staticTileTextureImageMemory;
+		VkImageView staticTileTextureImageView;
+		VkBuffer staticTileVertexBuffer;
+		VkDeviceMemory staticTileVertexBufferMemory;
+		VkBuffer staticTileIndexBuffer;
+		VkDeviceMemory staticTileIndexBufferMemory;
+		std::vector<StaticTileVertex> staticTileVertices;
+		std::vector<uint16_t> staticTileIndices;
+	};
+
 public:
 	bool m_framebufferResized = false;
+	std::shared_ptr<Scene> m_activeScene;
 
 public:
 	void init();
@@ -79,19 +85,18 @@ private:
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void createSwapChain();
 	void createImageViews();
-
-	// Probably inside Renderer
 	void createRenderPass();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
+
+	// Scene specifics
 	void createFramebuffers();
 	void createCommandPool();
 	void createDepthRessources();
-	void createTextureImage();
-	void createTextureImageView();
+	void createTextures();
 	void createTextureSampler();
-	void createVertexBuffer();
-	void createIndexBuffer();
+	void createVertexBuffers();
+	void createIndexBuffers();
 	void createUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
@@ -99,6 +104,7 @@ private:
 	void createSyncObjects();
 	void recreateSwapChain();
 	void cleanupSwapChain();
+	void cleanupSceneRessources();
 
 	// Helper Functions
 	std::vector<char> readShaderFromFile(const std::string& filename);
@@ -107,6 +113,8 @@ private:
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+	void createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer,
+		VkDeviceMemory vertexBufferMemory);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -118,6 +126,7 @@ private:
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat findDepthFormat();
 	bool hasStencilComponent(VkFormat format);
+	void createTextureImage(const char* textureFile, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
 
 	// Main Loop
 	void drawFrame();
@@ -155,7 +164,7 @@ private:
 	VkImage m_textureImage;
 	VkDeviceMemory m_textureImageMemory;
 	VkImageView m_textureImageView;
-	VkSampler m_textureSampler;
+	VkSampler m_textureSamplerNearest;
 	VkBuffer m_vertexBuffer;
 	VkDeviceMemory m_vertexBufferMemory;
 	VkBuffer m_indexBuffer;
@@ -169,21 +178,17 @@ private:
 	std::vector<VkDeviceMemory> m_depthImageMemories;
 	std::vector<VkImageView> m_depthImageViews;
 
+	SceneRessources m_sceneRessources;
+
 	std::vector<Vertex> m_vertices = {
 		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
 		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-
-		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-		{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-		{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.5f}},
+		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.5f}},
 	};
 
 	std::vector<uint16_t> m_indices = {
 		0, 1, 2, 2, 3, 0,
-		4, 5, 6, 6, 7, 4
 	};
 
 	//Main Loop

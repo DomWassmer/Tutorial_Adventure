@@ -23,6 +23,7 @@ void Game::init()
 	m_renderer3D->init();
 
 	m_activeScene = Scene::generateScene(Scene::SceneType::Level1);
+	m_renderer3D->m_activeScene = m_activeScene;
 	m_renderer3D->generateSceneRessources();
 	m_activeScene->printCellInfo(0);
 }
