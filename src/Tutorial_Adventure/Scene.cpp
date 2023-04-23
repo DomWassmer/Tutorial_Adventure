@@ -27,6 +27,9 @@ void Scene::generateScene_MainMenu()
 void Scene::generateScene_Level1() {
 	{
 		Cell cell_0;
+		cell_0.cellPosition[0] = 0;
+		cell_0.cellPosition[1] = 0;
+
 		cell_0.m_staticTiles.resize(CELL_SIZE * CELL_SIZE);
 
 		uint32_t spriteIndices[CELL_SIZE * CELL_SIZE] = 
@@ -74,10 +77,8 @@ void Scene::generateScene_Level1() {
 			for (size_t x = 0; x < CELL_SIZE; x++)
 			{
 				Tile tile;
-				int gridLocation[3] = { x, 0, z };
-				memcpy(&tile.m_gridLocation, &gridLocation, 3 * sizeof(int));
-				int orientation[3] = { 0, 0, 0 };
-				memcpy(&tile.m_orientation, &orientation, 3 * sizeof(int));
+				tile.m_gridLocation = { (float)x, 0.0f, (float)z };
+				tile.m_orientation = { 0, 0, 0 };
 				tile.m_spriteIndex = spriteIndices[z * CELL_SIZE + x];
 				tile.m_rotation = spriteRotations[z * CELL_SIZE + x];
 				tile.solid = true;

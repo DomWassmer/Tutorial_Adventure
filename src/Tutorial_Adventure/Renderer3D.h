@@ -18,6 +18,11 @@
 #include "Scene.h"
 #include "Vertex.h"
 
+// The static tile sprite sheet is expected top be 160 by 160 pixels containg 10 sprites per row and column
+#define STATIC_TILE_SPRITE_SIZE 16
+#define STATIC_TILE_TEXTURE_DIMENSION 160
+#define STATIC_TILE_TEXTURE_MODULAR 10
+
 // MVP: Model-View-Projection Matrices
 struct UniformBufferObject {
 	alignas(16) glm::mat4 model;
@@ -95,8 +100,7 @@ private:
 	void createDepthRessources();
 	void createTextures();
 	void createTextureSampler();
-	void createVertexBuffers();
-	void createIndexBuffers();
+	void createVertexAndIndexBuffers();
 	void createUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
@@ -114,7 +118,9 @@ private:
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer,
-		VkDeviceMemory vertexBufferMemory);
+		VkDeviceMemory& vertexBufferMemory);
+	void createIndexBuffer(VkDeviceSize bufferSize, void* indexData, VkBuffer& indexBuffer,
+		VkDeviceMemory& indexBufferMemory);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -184,7 +190,7 @@ private:
 		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
 		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
 		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.5f}},
-		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.5f}},
+		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.5f}}
 	};
 
 	std::vector<uint16_t> m_indices = {

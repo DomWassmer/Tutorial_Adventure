@@ -2,8 +2,8 @@
 
 class Tile {
 public:
-	int m_gridLocation[3];
-	int m_orientation[3];
+	glm::vec3 m_gridLocation;
+	glm::vec3 m_orientation;
 	int m_rotation = 0; // modulo 4 rotation values
 	int m_spriteIndex = -1;
 	bool solid = true;

@@ -60,8 +60,7 @@ void Renderer3D::generateSceneRessources()
 	createTextures();
 
 	// Load all vertex and buffer ressources for current scene
-	createVertexBuffers();
-	createIndexBuffer();
+	createVertexAndIndexBuffers();
 
 	// Load all descriptor ressources for current scene
 	createDescriptorPool();
@@ -553,8 +552,8 @@ void Renderer3D::createDescriptorSetLayout()
 
 void Renderer3D::createGraphicsPipeline()
 {
-	auto vertShaderCode = readShaderFromFile("../../../shaders/vert.spv");
-	auto fragShaderCode = readShaderFromFile("../../../shaders/frag.spv");
+	auto vertShaderCode = readShaderFromFile("../../../shaders/StaticTileVert.spv");
+	auto fragShaderCode = readShaderFromFile("../../../shaders/StaticTileFrag.spv");
 #ifdef _DEBUG
 	std::cout << "Size of vert shader: " << vertShaderCode.size() << " bytes"
 		<< "\nSize of frag shader: " << fragShaderCode.size() << " bytes" << std::endl;
@@ -784,38 +783,62 @@ void Renderer3D::createTextureSampler()
 		throw std::runtime_error("VUlkan: failed to create texture sampler!");
 }
 
-void Renderer3D::createVertexBuffers()
+void Renderer3D::createVertexAndIndexBuffers()
 {
 	// Static tile vertex buffer creation
-	
-	for (size_t i = 0; i < m_activeScene)
+	for (size_t i = 0; i < m_activeScene->m_cellGrid.size(); i++)
+	{
+		const Cell& cell = m_activeScene->m_cellGrid[i];
+		for (size_t j = 0; j < cell.m_staticTiles.size(); j++)
+		{
+			const Tile& staticTile = cell.m_staticTiles[j];
+			StaticTileVertex vertexBottomLeft;
+			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y;
+			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
+			vertexBottomLeft.texCoord = { 0.1f, 0.0f };
+			
+			StaticTileVertex vertexBottomRight;
+			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y;
+			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
+			vertexBottomRight.texCoord = { 0.0f, 0.0f };
 
-	VkDeviceSize bufferSize = sizeof(vertices[0]) * m_vertices.size();
-	createVertexBuffer()
-}
+			StaticTileVertex vertexTopRight;
+			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopRight.worldPos.y = staticTile.m_gridLocation.y;
+			vertexTopRight.worldPos.z = 1.0f + staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
+			vertexTopRight.texCoord = { 0.0f, 0.1f };
 
-void Renderer3D::createIndexBuffers()
-{
-	VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
+			StaticTileVertex vertexTopLeft;
+			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopLeft.worldPos.y = staticTile.m_gridLocation.y;
+			vertexTopLeft.worldPos.z = 1.0f + staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
+			vertexTopLeft.texCoord = { 0.1f, 0.1f };
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_indices.data(), (size_t)bufferSize);
-	vkUnmapMemory(m_device, stagingBufferMemory);
-
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
-
-	copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
-
-	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
+			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
+			m_sceneRessources.staticTileVertices.push_back(vertexBottomRight);
+			m_sceneRessources.staticTileVertices.push_back(vertexTopRight);
+			m_sceneRessources.staticTileVertices.push_back(vertexTopLeft);
+			m_sceneRessources.staticTileIndices.insert(m_sceneRessources.staticTileIndices.end(),
+				{
+				(uint16_t)(numVerticesBefore + 0),
+				(uint16_t)(numVerticesBefore + 1),
+				(uint16_t)(numVerticesBefore + 2),
+				(uint16_t)(numVerticesBefore + 2),
+				(uint16_t)(numVerticesBefore + 3),
+				(uint16_t)(numVerticesBefore + 0)
+				}
+			);
+		}
+	}
+	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
+	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
+		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
+	bufferSize = sizeof(uint16_t) * m_sceneRessources.staticTileIndices.size();
+	createIndexBuffer(bufferSize, m_sceneRessources.staticTileIndices.data(),
+		m_sceneRessources.staticTileIndexBuffer, m_sceneRessources.staticTileIndexBufferMemory);
 }
 
 void Renderer3D::createUniformBuffers()
@@ -1059,13 +1082,13 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 
 	//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-	VkBuffer vertexBuffers[] = { m_vertexBuffer };
+	VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
 		0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, (uint32_t)m_indices.size(), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(commandBuffer);
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -1376,7 +1399,7 @@ void Renderer3D::createTextureImage(const char* textureFile, VkImage& textureIma
 }
 
 void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer, 
-	VkDeviceMemory vertexBufferMemory)
+	VkDeviceMemory& vertexBufferMemory)
 {
 	// Important note: vkAllocateMemory to allocate memory in the GPU should not be used on individual buffers
 	// but rather multiple buffers should be placed into one with offsets
@@ -1395,6 +1418,29 @@ void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, void* verticesData,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
 	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+}
+
+void Renderer3D::createIndexBuffer(VkDeviceSize bufferSize, void* indexData, VkBuffer& indexBuffer, 
+	VkDeviceMemory& indexBufferMemory)
+{
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, indexData, (size_t)bufferSize);
+	vkUnmapMemory(m_device, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
 	vkDestroyBuffer(m_device, stagingBuffer, nullptr);
 	vkFreeMemory(m_device, stagingBufferMemory, nullptr);

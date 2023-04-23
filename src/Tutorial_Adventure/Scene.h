@@ -8,10 +8,13 @@
 #include "Object.h"
 #include "UI.h"
 
+#include <glm/glm.hpp>
+
 // both width and length
 #define CELL_SIZE 16
 
 struct Cell {
+	int cellPosition[2];
 	std::vector<Character> m_enemies;
 	std::vector<Tile> m_staticTiles;
 	std::vector<DynamicTile> m_dynamicTiles;
