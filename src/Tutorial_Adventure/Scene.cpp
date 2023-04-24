@@ -72,17 +72,17 @@ void Scene::generateScene_Level1() {
 			2, 1, 3, 3, 0, 1, 0, 0, 2, 1, 0, 2, 0, 3, 1, 0
 		};
 
-		for (size_t z = 0; z < CELL_SIZE; z++)
+		for (size_t y = 0; y < CELL_SIZE; y++)
 		{
 			for (size_t x = 0; x < CELL_SIZE; x++)
 			{
 				Tile tile;
-				tile.m_gridLocation = { (float)x, 0.0f, (float)z };
+				tile.m_gridLocation = { (float)x, (float)y, 0.0f };
 				tile.m_orientation = { 0, 0, 0 };
-				tile.m_spriteIndex = spriteIndices[z * CELL_SIZE + x];
-				tile.m_rotation = spriteRotations[z * CELL_SIZE + x];
+				tile.m_spriteIndex = spriteIndices[y * CELL_SIZE + x];
+				tile.m_rotation = spriteRotations[y * CELL_SIZE + x];
 				tile.solid = true;
-				cell_0.m_staticTiles[z * CELL_SIZE + x] = tile;
+				cell_0.m_staticTiles[y * CELL_SIZE + x] = tile;
 			}
 		}
 

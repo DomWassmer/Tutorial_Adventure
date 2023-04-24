@@ -91,11 +91,11 @@ void Renderer3D::cleanup()
 		vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
 	}
 
-	vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-	vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
+	//vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
+	//vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
 
-	vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
-	vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
+	//vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
+	//vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
 
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
@@ -584,8 +584,8 @@ void Renderer3D::createGraphicsPipeline()
 	dynamicState.dynamicStateCount = (uint32_t)dynamicStates.size();
 	dynamicState.pDynamicStates = dynamicStates.data();
 
-	auto bindingDescriptions = Vertex::getBindingDescription();
-	auto attributeDescriptions = Vertex::getAttributeDescriptions();
+	auto bindingDescriptions = StaticTileVertex::getBindingDescription();
+	auto attributeDescriptions = StaticTileVertex::getAttributeDescriptions();
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -794,27 +794,27 @@ void Renderer3D::createVertexAndIndexBuffers()
 			const Tile& staticTile = cell.m_staticTiles[j];
 			StaticTileVertex vertexBottomLeft;
 			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y;
-			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
-			vertexBottomLeft.texCoord = { 0.1f, 0.0f };
+			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z;
+			vertexBottomLeft.texCoord = { 0.1f, 0.1f };
 			
 			StaticTileVertex vertexBottomRight;
 			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y;
-			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
-			vertexBottomRight.texCoord = { 0.0f, 0.0f };
+			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z;
+			vertexBottomRight.texCoord = { 0.2f, 0.1f };
 
 			StaticTileVertex vertexTopRight;
 			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopRight.worldPos.y = staticTile.m_gridLocation.y;
-			vertexTopRight.worldPos.z = 1.0f + staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
-			vertexTopRight.texCoord = { 0.0f, 0.1f };
+			vertexTopRight.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopRight.worldPos.z = staticTile.m_gridLocation.z;
+			vertexTopRight.texCoord = { 0.2f, 0.0f };
 
 			StaticTileVertex vertexTopLeft;
 			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopLeft.worldPos.y = staticTile.m_gridLocation.y;
-			vertexTopLeft.worldPos.z = 1.0f + staticTile.m_gridLocation.z + (float)cell.cellPosition[1];
-			vertexTopLeft.texCoord = { 0.1f, 0.1f };
+			vertexTopLeft.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopLeft.worldPos.z = staticTile.m_gridLocation.z;
+			vertexTopLeft.texCoord = { 0.1f, 0.0f };
 
 			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
 			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
@@ -833,6 +833,17 @@ void Renderer3D::createVertexAndIndexBuffers()
 			);
 		}
 	}
+
+	std::vector<StaticTileVertex> exampleVertices = {
+		/* BottomLeft  */{{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.1f, 0.1f}},
+		/* BottomRight */{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.2f, 0.1f}},
+		/* TopRight    */{{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.2f, 0.0f}},
+		/* TopLeft     */{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.1f, 0.0f}}
+	};
+	std::vector<uint16_t> exampleIndices = { 0, 1, 2, 2, 3, 0 };
+	//m_sceneRessources.staticTileVertices = exampleVertices;
+	//m_sceneRessources.staticTileIndices = exampleIndices;
+
 	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
 	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
 		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
@@ -1008,6 +1019,11 @@ void Renderer3D::cleanupSceneRessources()
 	vkDestroyImage(m_device, m_sceneRessources.staticTileTextureImage, nullptr);
 	vkFreeMemory(m_device, m_sceneRessources.staticTileTextureImageMemory, nullptr);
 
+	vkDestroyBuffer(m_device, m_sceneRessources.staticTileVertexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileVertexBufferMemory, nullptr);
+
+	vkDestroyBuffer(m_device, m_sceneRessources.staticTileIndexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileIndexBufferMemory, nullptr);
 }
 
 //
@@ -1529,11 +1545,17 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 
 	UniformBufferObject ubo{};
 	// Rotation of the model around z-axis
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	// Viewed from 45 degree angle
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.model = glm::mat4(1.0f); // Identity matrix
+	glm::vec3 cameraPosition = glm::vec3(8.0f, 8.0f, 20.0f);
+	glm::vec3 cameraTarget = glm::vec3(8.0f, 8.0f, 0.0f);
+	glm::vec3 cameraDirection = glm::normalize(cameraTarget - cameraPosition);
+	glm::vec3 upWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 cameraRight = glm::normalize(glm::cross(upWorldSpace, cameraDirection));
+	glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
+	ubo.view = glm::lookAt(cameraPosition, cameraPosition + cameraDirection, upWorldSpace);
 	ubo.proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / (float)m_swapChainExtent.height,
-		0.1f, 10.0f);
+		0.1f, 100.0f);
 	ubo.proj[1][1] *= -1; // because glm was designed for opengl were y coord is flipped
 	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }

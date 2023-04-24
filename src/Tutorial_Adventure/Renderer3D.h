@@ -186,17 +186,6 @@ private:
 
 	SceneRessources m_sceneRessources;
 
-	std::vector<Vertex> m_vertices = {
-		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.5f}},
-		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.5f}}
-	};
-
-	std::vector<uint16_t> m_indices = {
-		0, 1, 2, 2, 3, 0,
-	};
-
 	//Main Loop
 	std::vector<VkSemaphore> m_imageAvailableSemaphores; // Semaphores handle order of operations on the gpu
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
