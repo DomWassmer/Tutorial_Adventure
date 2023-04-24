@@ -133,6 +133,7 @@ private:
 	VkFormat findDepthFormat();
 	bool hasStencilComponent(VkFormat format);
 	void createTextureImage(const char* textureFile, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
+	std::array<glm::vec2, 4> queryStaticTileTextureCoords(int index, int rotation);
 
 	// Main Loop
 	void drawFrame();

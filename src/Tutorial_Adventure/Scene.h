@@ -7,6 +7,7 @@
 #include "Tile.h"
 #include "Object.h"
 #include "UI.h"
+#include "Camera.h"
 
 #include <glm/glm.hpp>
 
@@ -32,6 +33,7 @@ public:
 	Player m_player;
 	std::vector<Cell> m_cellGrid;
 	UI m_ui;
+	Camera m_activeCamera;
 
 	[[nodiscard]] static std::shared_ptr<Scene> generateScene(SceneType sceneType);
 	

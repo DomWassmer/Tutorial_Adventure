@@ -17,7 +17,7 @@
 const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validation" };
 #endif // USE_VK_VALIDATION_LAYERS
 #endif // DEBUG
-std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE1_EXTENSION_NAME };
 
 #define ASSET_PATH "../../../assets/"
 
@@ -601,9 +601,9 @@ void Renderer3D::createGraphicsPipeline()
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
-	viewport.y = 0.0f;
+	viewport.y = m_swapChainExtent.height;
 	viewport.width = (float)m_swapChainExtent.width;
-	viewport.height = (float)m_swapChainExtent.height;
+	viewport.height = -(float)m_swapChainExtent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f; // min max must be within [0.0f, 1.0f]
 
@@ -622,7 +622,7 @@ void Renderer3D::createGraphicsPipeline()
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -750,7 +750,7 @@ void Renderer3D::createDepthRessources()
 
 void Renderer3D::createTextures()
 {
-	std::string textureFile = ASSET_PATH "Sprite Floor Tiles.png";
+	std::string textureFile = ASSET_PATH "Sprite Number Tiles.png";
 	createTextureImage(textureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
 		m_sceneRessources.staticTileTextureImageMemory);
 	m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
@@ -792,29 +792,31 @@ void Renderer3D::createVertexAndIndexBuffers()
 		for (size_t j = 0; j < cell.m_staticTiles.size(); j++)
 		{
 			const Tile& staticTile = cell.m_staticTiles[j];
+			auto spriteTexCoords = queryStaticTileTextureCoords(staticTile.m_spriteIndex, staticTile.m_rotation);
+
 			StaticTileVertex vertexBottomLeft;
 			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
 			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
 			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z;
-			vertexBottomLeft.texCoord = { 0.1f, 0.1f };
+			vertexBottomLeft.texCoord = spriteTexCoords[0];
 			
 			StaticTileVertex vertexBottomRight;
 			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
 			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
 			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z;
-			vertexBottomRight.texCoord = { 0.2f, 0.1f };
+			vertexBottomRight.texCoord = spriteTexCoords[1];
 
 			StaticTileVertex vertexTopRight;
 			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
 			vertexTopRight.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
 			vertexTopRight.worldPos.z = staticTile.m_gridLocation.z;
-			vertexTopRight.texCoord = { 0.2f, 0.0f };
+			vertexTopRight.texCoord = spriteTexCoords[2];
 
 			StaticTileVertex vertexTopLeft;
 			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
 			vertexTopLeft.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
 			vertexTopLeft.worldPos.z = staticTile.m_gridLocation.z;
-			vertexTopLeft.texCoord = { 0.1f, 0.0f };
+			vertexTopLeft.texCoord = spriteTexCoords[3];
 
 			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
 			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
@@ -1462,6 +1464,22 @@ void Renderer3D::createIndexBuffer(VkDeviceSize bufferSize, void* indexData, VkB
 	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
 }
 
+std::array<glm::vec2, 4> Renderer3D::queryStaticTileTextureCoords(int index, int rotation)
+{
+	// TODO
+	// For now only reads first row needs more implementation
+	std::array<glm::vec2, 4> result;
+	//result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.1f);
+	//result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
+	//result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
+	//result[(rotation + 3) % 4] = glm::vec2(0.1f * (float)index, 0.0f);
+	result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.0f);
+	result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
+	result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
+	result[(rotation + 3) % 4] = glm::vec2(0.1f * (float)index, 0.1f);
+	return result;
+}
+
 //
 // Main Loop
 //
@@ -1549,11 +1567,9 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 	ubo.model = glm::mat4(1.0f); // Identity matrix
 	glm::vec3 cameraPosition = glm::vec3(8.0f, 8.0f, 20.0f);
 	glm::vec3 cameraTarget = glm::vec3(8.0f, 8.0f, 0.0f);
-	glm::vec3 cameraDirection = glm::normalize(cameraTarget - cameraPosition);
 	glm::vec3 upWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec3 cameraRight = glm::normalize(glm::cross(upWorldSpace, cameraDirection));
-	glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
-	ubo.view = glm::lookAt(cameraPosition, cameraPosition + cameraDirection, upWorldSpace);
+	ubo.view = glm::lookAt(cameraPosition, cameraTarget, upWorldSpace);
+	
 	ubo.proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / (float)m_swapChainExtent.height,
 		0.1f, 100.0f);
 	ubo.proj[1][1] *= -1; // because glm was designed for opengl were y coord is flipped
