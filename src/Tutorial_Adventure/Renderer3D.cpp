@@ -70,6 +70,8 @@ void Renderer3D::generateSceneRessources()
 void Renderer3D::render()
 {
 	glfwGetWindowSize(Game::getInstance().getWindow(), &m_width, &m_height);
+	m_activeScene->m_activeCamera.OnResize();
+	m_activeScene->m_activeCamera.OnUpdate();
 	drawFrame();
 	// or: vkQueueWaitIdle(m_device);
 	vkDeviceWaitIdle(m_device);
@@ -750,7 +752,7 @@ void Renderer3D::createDepthRessources()
 
 void Renderer3D::createTextures()
 {
-	std::string textureFile = ASSET_PATH "Sprite Number Tiles.png";
+	std::string textureFile = ASSET_PATH "Sprite Floor Tiles.png";
 	createTextureImage(textureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
 		m_sceneRessources.staticTileTextureImageMemory);
 	m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
@@ -1469,10 +1471,6 @@ std::array<glm::vec2, 4> Renderer3D::queryStaticTileTextureCoords(int index, int
 	// TODO
 	// For now only reads first row needs more implementation
 	std::array<glm::vec2, 4> result;
-	//result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.1f);
-	//result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
-	//result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
-	//result[(rotation + 3) % 4] = glm::vec2(0.1f * (float)index, 0.0f);
 	result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.0f);
 	result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
 	result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
@@ -1565,13 +1563,7 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 	// Rotation of the model around z-axis
 	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.model = glm::mat4(1.0f); // Identity matrix
-	glm::vec3 cameraPosition = glm::vec3(8.0f, 8.0f, 20.0f);
-	glm::vec3 cameraTarget = glm::vec3(8.0f, 8.0f, 0.0f);
-	glm::vec3 upWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-	ubo.view = glm::lookAt(cameraPosition, cameraTarget, upWorldSpace);
-	
-	ubo.proj = glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / (float)m_swapChainExtent.height,
-		0.1f, 100.0f);
-	ubo.proj[1][1] *= -1; // because glm was designed for opengl were y coord is flipped
+	ubo.view = m_activeScene->m_activeCamera.getView();
+	ubo.proj = m_activeScene->m_activeCamera.getProjection();
 	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }

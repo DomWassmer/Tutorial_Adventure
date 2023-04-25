@@ -20,6 +20,8 @@ public:
 
 	static Game& getInstance();
 	GLFWwindow* getWindow();
+	const std::shared_ptr<Scene>& getActiveScene() { return m_activeScene; }
+
 private:
 	std::unique_ptr<Renderer3D> m_renderer3D;
 	std::shared_ptr<Scene> m_activeScene;
