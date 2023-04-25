@@ -24,8 +24,13 @@
 #define STATIC_TILE_TEXTURE_MODULAR 10
 
 // MVP: Model-View-Projection Matrices
-struct UniformBufferObject {
-	alignas(16) glm::mat4 model;
+struct ModelMatrixPushConstant {
+	// Alignment rules don't apply for push constants apparently
+	glm::vec3 translate;
+	glm::vec3 rotate;
+};
+
+struct UniformBufferCameraObject{
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
 };
@@ -51,16 +56,34 @@ public:
 	};
 
 	struct SceneRessources {
-		// StaticTileRessources
 		VkImage staticTileTextureImage;
 		VkDeviceMemory staticTileTextureImageMemory;
 		VkImageView staticTileTextureImageView;
+		
+		// StaticTileRessources
 		VkBuffer staticTileVertexBuffer;
 		VkDeviceMemory staticTileVertexBufferMemory;
 		VkBuffer staticTileIndexBuffer;
 		VkDeviceMemory staticTileIndexBufferMemory;
 		std::vector<StaticTileVertex> staticTileVertices;
 		std::vector<uint16_t> staticTileIndices;
+
+		VkImage playerTextureImage;
+		VkDeviceMemory playerTextureImageMemory;
+		VkImageView playerTextureImageView;
+
+		// Player Ressources
+		VkBuffer playerVertexBuffer;
+		VkDeviceMemory playerVertexBufferMemory;
+		VkBuffer playerIndexBuffer;
+		VkDeviceMemory playerIndexBufferMemory;
+		std::vector<Vertex> playerVertices;
+		std::vector<uint16_t> playerIndices;
+	};
+
+	struct GraphicsPipelineRessources {
+		VkPipelineLayout pipelineLayout;
+		VkPipeline graphicsPipeline;
 	};
 
 public:
@@ -92,9 +115,8 @@ private:
 	void createImageViews();
 	void createRenderPass();
 	void createDescriptorSetLayout();
-	void createGraphicsPipeline();
 
-	// Scene specifics
+	void createGraphicsPipelines();
 	void createFramebuffers();
 	void createCommandPool();
 	void createDepthRessources();
@@ -113,6 +135,8 @@ private:
 	// Helper Functions
 	std::vector<char> readShaderFromFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
+	void createGraphicsPipeline(std::string& i_vertShaderFilename, std::string& i_fragShaderFilename,
+		VkPipeline& pipeline);
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
@@ -138,6 +162,7 @@ private:
 	// Main Loop
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
+	void updatePushConstants(uint32_t currentImage);
 
 private:
 	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
@@ -159,12 +184,12 @@ private:
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
 
-	// Probably extracted into own image class of a renderer
 	std::vector<VkImageView> m_swapChainImageViews;
 	VkDescriptorSetLayout m_descriptorSetLayout;
-	VkPipelineLayout m_pipelineLayout;
+	GraphicsPipelineRessources m_staticPipelineRes;
+	GraphicsPipelineRessources m_actorPipelineRes;
 	VkRenderPass m_renderPass;
-	VkPipeline m_graphicsPipeline;
+	
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 	VkCommandPool m_commandPool;
 	std::vector<VkCommandBuffer> m_commandBuffers;

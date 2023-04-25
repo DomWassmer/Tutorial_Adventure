@@ -36,5 +36,5 @@ void Camera::setViewTarget(glm::vec3 target, glm::vec3 position)
 {
 	m_position = position;
 	m_direction = glm::normalize(position - target);
-	m_view = glm::lookAt(position, target, glm::vec3({ 0.0f, 1.0f, 0.0f }));
+	m_view = glm::lookAt(position, target, glm::vec3({ 0.0f, 0.0f, 1.0f }));
 }
