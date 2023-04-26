@@ -414,6 +414,7 @@ void Renderer3D::createSwapChain()
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 
+	MAX_FRAMES_IN_FLIGHT = imageCount;
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = m_surface;
@@ -603,9 +604,9 @@ void Renderer3D::createGraphicsPipeline()
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
-	viewport.y = m_swapChainExtent.height;
+	viewport.y = 0.0f;//m_swapChainExtent.height;
 	viewport.width = (float)m_swapChainExtent.width;
-	viewport.height = -(float)m_swapChainExtent.height;
+	viewport.height = (float)m_swapChainExtent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f; // min max must be within [0.0f, 1.0f]
 
@@ -1471,10 +1472,10 @@ std::array<glm::vec2, 4> Renderer3D::queryStaticTileTextureCoords(int index, int
 	// TODO
 	// For now only reads first row needs more implementation
 	std::array<glm::vec2, 4> result;
-	result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.0f);
-	result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
-	result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
-	result[(rotation + 3) % 4] = glm::vec2(0.1f * (float)index, 0.1f);
+	result[rotation % 4] = glm::vec2(0.1f * (float)index, 0.1f);
+	result[(rotation + 1) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.1f);
+	result[(rotation + 2) % 4] = glm::vec2(0.1f * (float)index + 0.1f, 0.0f);
+	result[(rotation + 3) % 4] = glm::vec2(0.1f * (float)index, 0.0f);
 	return result;
 }
 
@@ -1565,5 +1566,6 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 	ubo.model = glm::mat4(1.0f); // Identity matrix
 	ubo.view = m_activeScene->m_activeCamera.getView();
 	ubo.proj = m_activeScene->m_activeCamera.getProjection();
+	ubo.proj[1][1] *= -1;
 	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }

@@ -1,5 +1,6 @@
 project("Tutorial_Adventure")
 
+include_directories(.)
 include_directories(Input)
 include_directories(${Vulkan_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/vendor/glfw-3.3.8/include)

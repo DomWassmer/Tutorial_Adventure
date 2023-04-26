@@ -28,7 +28,7 @@ void Scene::generateScene_Level1() {
 	{
 		m_player.m_position = glm::vec3(8.0f, 8.0f, 0.0f);
 
-		m_activeCamera.m_position = glm::vec3(8.0f, 16.0f, 20.0f);
+		m_activeCamera.m_position = glm::vec3(8.0f, -5.0f, 20.0f);
 
 		Cell cell_0;
 		cell_0.cellPosition[0] = 0;

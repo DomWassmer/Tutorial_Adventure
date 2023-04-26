@@ -141,7 +141,7 @@ private:
 
 private:
 	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
-	const int MAX_FRAMES_IN_FLIGHT = 2;
+	int MAX_FRAMES_IN_FLIGHT = 2;
 	uint32_t m_currentFrame = 0;
 
 	bool m_init = false;
