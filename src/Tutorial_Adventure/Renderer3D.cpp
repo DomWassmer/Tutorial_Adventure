@@ -20,6 +20,7 @@ const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validati
 std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE1_EXTENSION_NAME };
 
 #define ASSET_PATH "../../../assets/"
+#define SHADER_PATH "../../../shaders/"
 
 // Can't be a member function because compiler changes member function to non-member function func(this, args)
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
@@ -555,8 +556,8 @@ void Renderer3D::createDescriptorSetLayout()
 
 void Renderer3D::createGraphicsPipeline()
 {
-	auto vertShaderCode = readShaderFromFile("../../../shaders/StaticTileVert.spv");
-	auto fragShaderCode = readShaderFromFile("../../../shaders/StaticTileFrag.spv");
+	auto vertShaderCode = readShaderFromFile(SHADER_PATH "StaticTileVert.spv");
+	auto fragShaderCode = readShaderFromFile(SHADER_PATH "StaticTileFrag.spv");
 #ifdef _DEBUG
 	std::cout << "Size of vert shader: " << vertShaderCode.size() << " bytes"
 		<< "\nSize of frag shader: " << fragShaderCode.size() << " bytes" << std::endl;
