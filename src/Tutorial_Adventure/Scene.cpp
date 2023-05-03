@@ -26,6 +26,7 @@ void Scene::generateScene_MainMenu()
 
 void Scene::generateScene_Level1() {
 	{
+		// For now only draw first sprite of character
 		m_player.m_position = glm::vec3(8.0f, 8.0f, 0.0f);
 		m_player.m_spriteIndex = 0;
 

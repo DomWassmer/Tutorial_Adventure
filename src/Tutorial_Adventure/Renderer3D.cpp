@@ -20,6 +20,7 @@ const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validati
 std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE1_EXTENSION_NAME };
 
 #define ASSET_PATH "../../../assets/"
+#define SHADER_PATH "../../../shaders/"
 
 // Can't be a member function because compiler changes member function to non-member function func(this, args)
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
@@ -84,23 +85,6 @@ void Renderer3D::cleanup()
 
 	cleanupSceneRessources();
 
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
-	}
-
-	//vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-	//vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
-
-	//vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
-	//vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
-
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -413,6 +397,7 @@ void Renderer3D::createSwapChain()
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
 		imageCount = swapChainSupport.capabilities.maxImageCount;
+	MAX_FRAMES_IN_FLIGHT = imageCount;
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -554,14 +539,23 @@ void Renderer3D::createDescriptorSetLayout()
 
 void Renderer3D::createGraphicsPipelines()
 {
-	"../../../shaders/StaticTileVert.spv"
-		"../../../shaders/StaticTileFrag.spv"
+	{
+		std::string vertShader = SHADER_PATH "StaticTileVert.spv";
+		std::string frageShader = SHADER_PATH "StaticTileFrag.spv";
+		createGraphicsPipeline(vertShader, frageShader, nullptr, m_staticPipelineRes);
+	}
 
-	VkPushConstantRange pushConstantRange{};
-	// For now I only want to access it in the fragment shader. Maybe later use it in frag shader for ambient light to.
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(ModelMatrixPushConstant);
+	{
+		std::string vertShader = SHADER_PATH "playerVert.spv";
+		std::string frageShader = SHADER_PATH "playerFrag.spv";
+
+		VkPushConstantRange pushConstantRange{};
+		// For now I only want to access it in the fragment shader. Maybe later use it in frag shader for ambient light to.
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(ModelMatrixPushConstant);
+		createGraphicsPipeline(vertShader, frageShader, &pushConstantRange, m_actorPipelineRes);
+	}
 }
 
 void Renderer3D::createFramebuffers()
@@ -615,11 +609,21 @@ void Renderer3D::createDepthRessources()
 
 void Renderer3D::createTextures()
 {
-	std::string textureFile = ASSET_PATH "Sprite Number Tiles.png";
-	createTextureImage(textureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
-		m_sceneRessources.staticTileTextureImageMemory);
-	m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
-		VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	{
+		std::string FloorTextureFile = ASSET_PATH "Sprite Floor Tiles.png";
+		createTextureImage(FloorTextureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
+			m_sceneRessources.staticTileTextureImageMemory);
+		m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
+			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
+
+	{
+		std::string PlayerTextureFile = ASSET_PATH "Walpurgia.png";
+		createTextureImage(PlayerTextureFile.c_str(), m_sceneRessources.playerTextureImage,
+			m_sceneRessources.playerTextureImageMemory);
+		m_sceneRessources.playerTextureImageView = createImageView(m_sceneRessources.playerTextureImage,
+			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
 }
 
 void Renderer3D::createTextureSampler()
@@ -701,15 +705,6 @@ void Renderer3D::createVertexAndIndexBuffers()
 		}
 	}
 
-	std::vector<StaticTileVertex> exampleVertices = {
-		/* BottomLeft  */{{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.1f, 0.1f}},
-		/* BottomRight */{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.2f, 0.1f}},
-		/* TopRight    */{{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.2f, 0.0f}},
-		/* TopLeft     */{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.1f, 0.0f}}
-	};
-	std::vector<uint16_t> exampleIndices = { 0, 1, 2, 2, 3, 0 };
-	//m_sceneRessources.staticTileVertices = exampleVertices;
-	//m_sceneRessources.staticTileIndices = exampleIndices;
 
 	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
 	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
@@ -717,6 +712,25 @@ void Renderer3D::createVertexAndIndexBuffers()
 	bufferSize = sizeof(uint16_t) * m_sceneRessources.staticTileIndices.size();
 	createIndexBuffer(bufferSize, m_sceneRessources.staticTileIndices.data(),
 		m_sceneRessources.staticTileIndexBuffer, m_sceneRessources.staticTileIndexBufferMemory);
+	
+	// Player buffer creation
+	{
+		float offset = 0.7 / 16.0f;
+		m_sceneRessources.playerVertices = {
+			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.5f}},
+			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.25f, 0.5f}},
+			/* TopRight    */{{2.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}, {0.25f, 0.0f}},
+			/* TopLeft     */{{0.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}}
+		};
+		m_sceneRessources.playerIndices = { 0, 1, 2, 2, 3, 0 };
+		
+		VkDeviceSize bufferSize = sizeof(Vertex) * m_sceneRessources.playerVertices.size();
+		createVertexBuffer(bufferSize, m_sceneRessources.playerVertices.data(),
+			m_sceneRessources.playerVertexBuffer, m_sceneRessources.playerVertexBufferMemory);
+		bufferSize = sizeof(uint16_t) * m_sceneRessources.playerIndices.size();
+		createIndexBuffer(bufferSize, m_sceneRessources.playerIndices.data(),
+			m_sceneRessources.playerIndexBuffer, m_sceneRessources.playerIndexBufferMemory);
+	}
 }
 
 void Renderer3D::createUniformBuffers()
@@ -744,6 +758,8 @@ void Renderer3D::createDescriptorPool()
 	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+	//poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	//poolSizes[2].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -774,11 +790,6 @@ void Renderer3D::createDescriptorSets()
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferCameraObject);
 
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_sceneRessources.staticTileTextureImageView;
-		imageInfo.sampler = m_textureSamplerNearest;
-
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = m_descriptorSets[i];
@@ -789,6 +800,11 @@ void Renderer3D::createDescriptorSets()
 		descriptorWrites[0].pBufferInfo = &bufferInfo;
 		descriptorWrites[0].pImageInfo = nullptr; // Optional
 		descriptorWrites[0].pTexelBufferView = nullptr; // Optional
+		
+		VkDescriptorImageInfo staticTileTextureImageInfo{};
+		staticTileTextureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		staticTileTextureImageInfo.imageView = m_sceneRessources.staticTileTextureImageView;
+		staticTileTextureImageInfo.sampler = m_textureSamplerNearest;
 
 		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[1].dstSet = m_descriptorSets[i];
@@ -796,7 +812,20 @@ void Renderer3D::createDescriptorSets()
 		descriptorWrites[1].dstArrayElement = 0;
 		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &imageInfo;
+		descriptorWrites[1].pImageInfo = &staticTileTextureImageInfo;
+
+		/*VkDescriptorImageInfo playerTextureImageInfo{};
+		playerTextureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		playerTextureImageInfo.imageView = m_sceneRessources.playerTextureImageView;
+		playerTextureImageInfo.sampler = m_textureSamplerNearest;
+
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[2].dstSet = m_descriptorSets[i];
+		descriptorWrites[2].dstBinding = 1;
+		descriptorWrites[2].dstArrayElement = 0;
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[2].descriptorCount = 1;
+		descriptorWrites[2].pImageInfo = &playerTextureImageInfo;*/
 
 		vkUpdateDescriptorSets(m_device, (uint32_t)descriptorWrites.size(),
 			descriptorWrites.data(), 0, nullptr);
@@ -888,9 +917,31 @@ void Renderer3D::cleanupSceneRessources()
 
 	vkDestroyBuffer(m_device, m_sceneRessources.staticTileVertexBuffer, nullptr);
 	vkFreeMemory(m_device, m_sceneRessources.staticTileVertexBufferMemory, nullptr);
-
 	vkDestroyBuffer(m_device, m_sceneRessources.staticTileIndexBuffer, nullptr);
 	vkFreeMemory(m_device, m_sceneRessources.staticTileIndexBufferMemory, nullptr);
+
+	// Cleanup player ressources
+	vkDestroyImageView(m_device, m_sceneRessources.playerTextureImageView, nullptr);
+	vkDestroyImage(m_device, m_sceneRessources.playerTextureImage, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.playerTextureImageMemory, nullptr);
+
+	vkDestroyBuffer(m_device, m_sceneRessources.playerVertexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.playerVertexBufferMemory, nullptr);
+	vkDestroyBuffer(m_device, m_sceneRessources.playerIndexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemory, nullptr);
+
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
+	}
+
+	vkDestroyPipeline(m_device, m_staticPipelineRes.graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_staticPipelineRes.pipelineLayout, nullptr);
+
 }
 
 //
@@ -925,7 +976,7 @@ VkShaderModule Renderer3D::createShaderModule(const std::vector<char>& code)
 }
 
 void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
-	VkPushConstantRange i_pushConstantRange, GraphicsPipelineRessources& pipelineRessources)
+	VkPushConstantRange* i_pushConstantRange, GraphicsPipelineRessources& pipelineRessources)
 {
 	auto vertShaderCode = readShaderFromFile(i_vertShaderFilename);
 	auto fragShaderCode = readShaderFromFile(i_fragShaderFilename);
@@ -1040,12 +1091,20 @@ void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename,
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout; 
-	pipelineLayoutInfo.pushConstantRangeCount = 1;
-	pipelineLayoutInfo.pPushConstantRanges = &i_pushConstantRange;
 	// specify push constants here for passing dynamic values into shaders later
+	pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+	if (i_pushConstantRange)
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = i_pushConstantRange;
+	}
+	else
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 0;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
+	}
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &pipelineRessources.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create pipeline layout!");
 	
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -1114,24 +1173,36 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	/*
 	Draw static objects with the static object pipeline
 	*/
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.graphicsPipeline);
-	VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
-		0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.graphicsPipeline);
+		VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.pipelineLayout,
+			0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
+	}
+
 	/*
 	Draw actors with the actors with the actor object pipeline
 	player, enemies and actor objects are actors
 	*/
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.graphicsPipeline);
-	ModelMatrixPushConstant playerPushConstants{};
-	playerPushConstants.translate = m_activeScene->m_player.m_position;
-	playerPushConstants.rotate = m_activeScene->m_player.m_orientation;
-	vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-		sizeof(ModelMatrixPushConstant), &playerPushConstants);
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.graphicsPipeline);
+		ModelMatrixPushConstant playerPushConstants{};
+		playerPushConstants.translate = m_activeScene->m_player.m_position;
+		playerPushConstants.rotate = m_activeScene->m_player.m_orientation;
+		vkCmdPushConstants(commandBuffer, m_actorPipelineRes.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+			sizeof(ModelMatrixPushConstant), &playerPushConstants);
+		VkBuffer vertexBuffers[] = { m_sceneRessources.playerVertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
+			0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.playerIndices.size(), 1, 0, 0, 0);
+	}
 
 	vkCmdEndRenderPass(commandBuffer);
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)

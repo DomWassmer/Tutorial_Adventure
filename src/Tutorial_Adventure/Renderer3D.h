@@ -135,8 +135,8 @@ private:
 	// Helper Functions
 	std::vector<char> readShaderFromFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createGraphicsPipeline(std::string& i_vertShaderFilename, std::string& i_fragShaderFilename,
-		VkPipeline& pipeline);
+	void createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
+		VkPushConstantRange* i_pushConstantRange, GraphicsPipelineRessources& pipelineRessources);
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
@@ -166,7 +166,7 @@ private:
 
 private:
 	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
-	const int MAX_FRAMES_IN_FLIGHT = 2;
+	int MAX_FRAMES_IN_FLIGHT = 2;
 	uint32_t m_currentFrame = 0;
 
 	bool m_init = false;
