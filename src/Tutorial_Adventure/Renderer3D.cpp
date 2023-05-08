@@ -511,30 +511,41 @@ void Renderer3D::createRenderPass()
 
 void Renderer3D::createDescriptorSetLayout()
 {
-	VkDescriptorSetLayoutBinding uboLayoutBinding{};
-	uboLayoutBinding.binding = 0;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+	// Global Set Layout
+	{
+		VkDescriptorSetLayoutBinding uboLayoutBinding{};
+		uboLayoutBinding.binding = 0;
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uboLayoutBinding.descriptorCount = 1;
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
-	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &uboLayoutBinding;
 
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings =
-	{ uboLayoutBinding, samplerLayoutBinding };
+		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.globalDescriptorSetLayout) != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
+	}
 
-	VkDescriptorSetLayoutCreateInfo layoutInfo{};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = (uint32_t)bindings.size();
-	layoutInfo.pBindings = bindings.data();
+	// Static Tile Set Layout
+	{
+		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+		samplerLayoutBinding.binding = 0;
+		samplerLayoutBinding.descriptorCount = 1;
+		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		samplerLayoutBinding.pImmutableSamplers = nullptr;
+		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &samplerLayoutBinding;
+		
+		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.staticTileDescriptorSetLayout) != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
+	}
 }
 
 void Renderer3D::createGraphicsPipelines()
@@ -735,19 +746,22 @@ void Renderer3D::createVertexAndIndexBuffers()
 
 void Renderer3D::createUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(UniformBufferCameraObject);
-	m_uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-	m_uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-	m_uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	// Global Uniform Buffers
 	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			m_uniformBuffers[i], m_uniformBuffersMemory[i]);
-		// Persistent Mapping
-		vkMapMemory(m_device, m_uniformBuffersMemory[i], 0, bufferSize, 0, &m_uniformBuffersMapped[i]);
+		VkDeviceSize bufferSize = sizeof(UniformBufferCameraObject);
+		m_sceneRessources.globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+		m_sceneRessources.globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+		m_sceneRessources.globalUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
 
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				m_sceneRessources.globalUniformBuffers[i], m_sceneRessources.globalUniformBuffersMemory[i]);
+			// Persistent Mapping
+			vkMapMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], 0, bufferSize, 
+				0, &m_sceneRessources.globalUniformBuffersMapped[i]);
+		}
 	}
 }
 
@@ -758,77 +772,82 @@ void Renderer3D::createDescriptorPool()
 	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	//poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	//poolSizes[2].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+	poolInfo.maxSets = 2 * (uint32_t)MAX_FRAMES_IN_FLIGHT; // 2* Because currently uses sets global and object specific set.
 	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create descriptor pool!");
 }
 
 void Renderer3D::createDescriptorSets()
 {
-	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
-	VkDescriptorSetAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = m_descriptorPool;
-	allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	allocInfo.pSetLayouts = layouts.data();
-
-	m_descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(m_device, &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor sets!");
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	// global Descriptor Set
 	{
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_uniformBuffers[i];
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UniformBufferCameraObject);
+		std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_sceneRessources.globalDescriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+		allocInfo.pSetLayouts = layouts.data();
 
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[0].dstSet = m_descriptorSets[i];
-		descriptorWrites[0].dstBinding = 0;
-		descriptorWrites[0].dstArrayElement = 0;
-		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[0].descriptorCount = 1;
-		descriptorWrites[0].pBufferInfo = &bufferInfo;
-		descriptorWrites[0].pImageInfo = nullptr; // Optional
-		descriptorWrites[0].pTexelBufferView = nullptr; // Optional
-		
+		m_sceneRessources.globalDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+		if (vkAllocateDescriptorSets(m_device, &allocInfo, m_sceneRessources.globalDescriptorSets.data()) != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor sets!");
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = m_sceneRessources.globalUniformBuffers[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(UniformBufferCameraObject);
+
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = m_sceneRessources.globalDescriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &bufferInfo;
+
+			vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+	
+	// Static Tile Descriptor Set
+	{
+		std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_sceneRessources.staticTileDescriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+		allocInfo.pSetLayouts = layouts.data();
+
+		m_sceneRessources.staticTileDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+		if (vkAllocateDescriptorSets(m_device, &allocInfo, m_sceneRessources.staticTileDescriptorSets.data()) != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor sets!");
+
 		VkDescriptorImageInfo staticTileTextureImageInfo{};
 		staticTileTextureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		staticTileTextureImageInfo.imageView = m_sceneRessources.staticTileTextureImageView;
 		staticTileTextureImageInfo.sampler = m_textureSamplerNearest;
 
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = m_descriptorSets[i];
-		descriptorWrites[1].dstBinding = 1;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &staticTileTextureImageInfo;
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = m_sceneRessources.staticTileDescriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &staticTileTextureImageInfo;
 
-		/*VkDescriptorImageInfo playerTextureImageInfo{};
-		playerTextureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		playerTextureImageInfo.imageView = m_sceneRessources.playerTextureImageView;
-		playerTextureImageInfo.sampler = m_textureSamplerNearest;
-
-		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[2].dstSet = m_descriptorSets[i];
-		descriptorWrites[2].dstBinding = 1;
-		descriptorWrites[2].dstArrayElement = 0;
-		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[2].descriptorCount = 1;
-		descriptorWrites[2].pImageInfo = &playerTextureImageInfo;*/
-
-		vkUpdateDescriptorSets(m_device, (uint32_t)descriptorWrites.size(),
-			descriptorWrites.data(), 0, nullptr);
+			vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+		}
 	}
 }
 
@@ -931,16 +950,19 @@ void Renderer3D::cleanupSceneRessources()
 	vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemory, nullptr);
 
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.globalDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.staticTileDescriptorSetLayout, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
+		vkDestroyBuffer(m_device, m_sceneRessources.globalUniformBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], nullptr);
 	}
 
 	vkDestroyPipeline(m_device, m_staticPipelineRes.graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_staticPipelineRes.pipelineLayout, nullptr);
+	vkDestroyPipeline(m_device, m_actorPipelineRes.graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_actorPipelineRes.pipelineLayout, nullptr);
 
 }
 
@@ -1090,9 +1112,10 @@ void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename,
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	// specify push constants here for passing dynamic values into shaders later
-	pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts =
+		{ m_sceneRessources.globalDescriptorSetLayout, m_sceneRessources.staticTileDescriptorSetLayout };
+	pipelineLayoutInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
+	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 	if (i_pushConstantRange)
 	{
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -1179,8 +1202,12 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		// Bind descriptor sets (Global is set zero, object related stuff is set one)
+		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
+			{ m_sceneRessources.globalDescriptorSets[m_currentFrame], 
+			m_sceneRessources.staticTileDescriptorSets[m_currentFrame] };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.pipelineLayout,
-			0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+			0, 2, descriptorSetsToBind.data(), 0, nullptr);
 		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
 	}
 
@@ -1199,8 +1226,13 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		// Bind descriptor sets (Global is set zero, object related stuff is set one)
+		// However if another actor is drawn only object related set has to be bound again.
+		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
+		{ m_sceneRessources.globalDescriptorSets[m_currentFrame],
+		m_sceneRessources.staticTileDescriptorSets[m_currentFrame] };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
-			0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+			0, 2, descriptorSetsToBind.data(), 0, nullptr);
 		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.playerIndices.size(), 1, 0, 0, 0);
 	}
 
@@ -1659,5 +1691,5 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 	ubo.view = m_activeScene->m_activeCamera.getView();
 	ubo.proj = m_activeScene->m_activeCamera.getProjection();
 	ubo.proj[1][1] *= -1;
-	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+	memcpy(m_sceneRessources.globalUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }

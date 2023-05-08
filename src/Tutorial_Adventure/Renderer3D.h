@@ -56,11 +56,19 @@ public:
 	};
 
 	struct SceneRessources {
+		// Global Ressources (camera, ambient light)
+		VkDescriptorSetLayout globalDescriptorSetLayout;
+		std::vector<VkDescriptorSet> globalDescriptorSets;
+		std::vector<VkBuffer> globalUniformBuffers;
+		std::vector<VkDeviceMemory> globalUniformBuffersMemory;
+		std::vector<void*> globalUniformBuffersMapped;
+
+		// StaticTileRessources
+		VkDescriptorSetLayout staticTileDescriptorSetLayout;
+		std::vector<VkDescriptorSet> staticTileDescriptorSets;
 		VkImage staticTileTextureImage;
 		VkDeviceMemory staticTileTextureImageMemory;
 		VkImageView staticTileTextureImageView;
-		
-		// StaticTileRessources
 		VkBuffer staticTileVertexBuffer;
 		VkDeviceMemory staticTileVertexBufferMemory;
 		VkBuffer staticTileIndexBuffer;
@@ -68,11 +76,10 @@ public:
 		std::vector<StaticTileVertex> staticTileVertices;
 		std::vector<uint16_t> staticTileIndices;
 
+		// Player Ressources
 		VkImage playerTextureImage;
 		VkDeviceMemory playerTextureImageMemory;
 		VkImageView playerTextureImageView;
-
-		// Player Ressources
 		VkBuffer playerVertexBuffer;
 		VkDeviceMemory playerVertexBufferMemory;
 		VkBuffer playerIndexBuffer;
@@ -185,7 +192,6 @@ private:
 	VkExtent2D m_swapChainExtent;
 
 	std::vector<VkImageView> m_swapChainImageViews;
-	VkDescriptorSetLayout m_descriptorSetLayout;
 	GraphicsPipelineRessources m_staticPipelineRes;
 	GraphicsPipelineRessources m_actorPipelineRes;
 	VkRenderPass m_renderPass;
@@ -193,19 +199,8 @@ private:
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 	VkCommandPool m_commandPool;
 	std::vector<VkCommandBuffer> m_commandBuffers;
-	VkImage m_textureImage;
-	VkDeviceMemory m_textureImageMemory;
-	VkImageView m_textureImageView;
 	VkSampler m_textureSamplerNearest;
-	VkBuffer m_vertexBuffer;
-	VkDeviceMemory m_vertexBufferMemory;
-	VkBuffer m_indexBuffer;
-	VkDeviceMemory m_indexBufferMemory;
-	std::vector<VkBuffer> m_uniformBuffers;
-	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
-	std::vector<void*> m_uniformBuffersMapped;
 	VkDescriptorPool m_descriptorPool;
-	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<VkImage> m_depthImages;
 	std::vector<VkDeviceMemory> m_depthImageMemories;
 	std::vector<VkImageView> m_depthImageViews;

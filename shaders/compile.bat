@@ -1,4 +1,4 @@
-set glslcExePath=C:\VulkanSDK\$(Vulkan_Version)\Bin/glslc.exe
+set glslcExePath=E:\dev\ExternalSources\VulkanSDK\1.3.236.0\Bin/glslc.exe
 %glslcExePath% shader.vert -o vert.spv
 %glslcExePath% shader.frag -o frag.spv
 %glslcExePath% staticTile.vert -o staticTileVert.spv
