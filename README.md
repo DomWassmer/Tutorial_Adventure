@@ -5,6 +5,7 @@ Installation:
 The project requires a Vulkan installation that supports the VK_KHR_maintenance1 device extension (1.1 or higher)
 To create the visual studio solution create a "build" folder in the root directory then run cmake from the root directory of the project.
 The last thing is to create an assets folder within and copy the assets from the following google drive link: https://drive.google.com/file/d/1cX1BgzgiTwI6_j9xHB5l16V6umoxpJ7x/view?usp=sharing
+(Sometimes this folder is updated so if any sprites look unintentional maybe update your assets)
 
 Additional information:
  - The code in the main branch is always able to be compiled and run successfully while other branches like renderer may have errors as they are under development
