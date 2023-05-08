@@ -546,6 +546,24 @@ void Renderer3D::createDescriptorSetLayout()
 		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.staticTileDescriptorSetLayout) != VK_SUCCESS)
 			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
 	}
+
+	// Player Set Layout
+	{
+		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+		samplerLayoutBinding.binding = 0;
+		samplerLayoutBinding.descriptorCount = 1;
+		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		samplerLayoutBinding.pImmutableSamplers = nullptr;
+		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &samplerLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.playerDescriptorSetLayout) != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
+	}
 }
 
 void Renderer3D::createGraphicsPipelines()
@@ -553,7 +571,8 @@ void Renderer3D::createGraphicsPipelines()
 	{
 		std::string vertShader = SHADER_PATH "StaticTileVert.spv";
 		std::string frageShader = SHADER_PATH "StaticTileFrag.spv";
-		createGraphicsPipeline(vertShader, frageShader, nullptr, m_staticPipelineRes);
+		createGraphicsPipeline(vertShader, frageShader, m_sceneRessources.staticTileDescriptorSetLayout, 
+			nullptr, m_staticPipelineRes);
 	}
 
 	{
@@ -565,7 +584,8 @@ void Renderer3D::createGraphicsPipelines()
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(ModelMatrixPushConstant);
-		createGraphicsPipeline(vertShader, frageShader, &pushConstantRange, m_actorPipelineRes);
+		createGraphicsPipeline(vertShader, frageShader, m_sceneRessources.playerDescriptorSetLayout, 
+			&pushConstantRange, m_actorPipelineRes);
 	}
 }
 
@@ -767,23 +787,24 @@ void Renderer3D::createUniformBuffers()
 
 void Renderer3D::createDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 2> poolSizes{};
+	std::array<VkDescriptorPoolSize, 3> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+	poolSizes[1].descriptorCount = (uint32_t)(2 * MAX_FRAMES_IN_FLIGHT);
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 2 * (uint32_t)MAX_FRAMES_IN_FLIGHT; // 2* Because currently uses sets global and object specific set.
+	poolInfo.maxSets = 3 * (uint32_t)MAX_FRAMES_IN_FLIGHT; // 3 * Because currently uses sets: 1 global and 2 object specific set.
 	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create descriptor pool!");
 }
 
 void Renderer3D::createDescriptorSets()
 {
+	// Code Abstraction neccessary
 	// global Descriptor Set
 	{
 		std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_sceneRessources.globalDescriptorSetLayout);
@@ -845,6 +866,40 @@ void Renderer3D::createDescriptorSets()
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrite.descriptorCount = 1;
 			descriptorWrite.pImageInfo = &staticTileTextureImageInfo;
+
+			vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+
+	// Player Descriptor Set
+	{
+		std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_sceneRessources.playerDescriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
+		allocInfo.pSetLayouts = layouts.data();
+
+		m_sceneRessources.playerDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+		auto ret = vkAllocateDescriptorSets(m_device, &allocInfo, m_sceneRessources.playerDescriptorSets.data());
+		if (ret != VK_SUCCESS)
+			throw std::runtime_error("Vulkan: failed to create descriptor sets!");
+
+		VkDescriptorImageInfo playerTextureImageInfo{};
+		playerTextureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		playerTextureImageInfo.imageView = m_sceneRessources.playerTextureImageView;
+		playerTextureImageInfo.sampler = m_textureSamplerNearest;
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = m_sceneRessources.playerDescriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &playerTextureImageInfo;
 
 			vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 		}
@@ -998,7 +1053,8 @@ VkShaderModule Renderer3D::createShaderModule(const std::vector<char>& code)
 }
 
 void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
-	VkPushConstantRange* i_pushConstantRange, GraphicsPipelineRessources& pipelineRessources)
+	const VkDescriptorSetLayout& i_descriptorSetLayout, VkPushConstantRange* i_pushConstantRange, 
+	GraphicsPipelineRessources& pipelineRessources)
 {
 	auto vertShaderCode = readShaderFromFile(i_vertShaderFilename);
 	auto fragShaderCode = readShaderFromFile(i_fragShaderFilename);
@@ -1113,7 +1169,7 @@ void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename,
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts =
-		{ m_sceneRessources.globalDescriptorSetLayout, m_sceneRessources.staticTileDescriptorSetLayout };
+		{ m_sceneRessources.globalDescriptorSetLayout, i_descriptorSetLayout };
 	pipelineLayoutInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
 	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 	if (i_pushConstantRange)
@@ -1217,6 +1273,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	*/
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.graphicsPipeline);
+		// First draw player
 		ModelMatrixPushConstant playerPushConstants{};
 		playerPushConstants.translate = m_activeScene->m_player.m_position;
 		playerPushConstants.rotate = m_activeScene->m_player.m_orientation;
@@ -1230,7 +1287,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		// However if another actor is drawn only object related set has to be bound again.
 		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
 		{ m_sceneRessources.globalDescriptorSets[m_currentFrame],
-		m_sceneRessources.staticTileDescriptorSets[m_currentFrame] };
+		m_sceneRessources.playerDescriptorSets[m_currentFrame] };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
 			0, 2, descriptorSetsToBind.data(), 0, nullptr);
 		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.playerIndices.size(), 1, 0, 0, 0);

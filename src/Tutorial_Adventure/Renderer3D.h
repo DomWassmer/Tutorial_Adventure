@@ -77,6 +77,8 @@ public:
 		std::vector<uint16_t> staticTileIndices;
 
 		// Player Ressources
+		VkDescriptorSetLayout playerDescriptorSetLayout;
+		std::vector<VkDescriptorSet> playerDescriptorSets;
 		VkImage playerTextureImage;
 		VkDeviceMemory playerTextureImageMemory;
 		VkImageView playerTextureImageView;
@@ -143,7 +145,8 @@ private:
 	std::vector<char> readShaderFromFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	void createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
-		VkPushConstantRange* i_pushConstantRange, GraphicsPipelineRessources& pipelineRessources);
+		const VkDescriptorSetLayout& i_descriptorSetLayout, VkPushConstantRange* i_pushConstantRange, 
+		GraphicsPipelineRessources& pipelineRessources);
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
