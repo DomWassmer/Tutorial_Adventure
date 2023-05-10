@@ -266,7 +266,6 @@ Renderer3D::QueueFamilyIndices Renderer3D::findQueueFamilies(VkPhysicalDevice de
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 	for (size_t i = 0; i < queueFamilyCount; i++)
 	{
-		// Why bitwise and?
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			indices.graphicsFamily = i;
 		VkBool32 presentSupport = false;
@@ -274,7 +273,6 @@ Renderer3D::QueueFamilyIndices Renderer3D::findQueueFamilies(VkPhysicalDevice de
 		if (presentSupport)
 			indices.presentFamily = i;
 	}
-
 
 	return indices;
 }
@@ -747,7 +745,7 @@ void Renderer3D::createVertexAndIndexBuffers()
 	
 	// Player buffer creation
 	{
-		float offset = 0.7 / 16.0f;
+		float offset = 8.0 / 16.0f;
 		m_sceneRessources.playerVertices = {
 			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.5f}},
 			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.25f, 0.5f}},
@@ -788,7 +786,7 @@ void Renderer3D::createUniformBuffers()
 
 void Renderer3D::createDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 3> poolSizes{};
+	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1008,6 +1006,7 @@ void Renderer3D::cleanupSceneRessources()
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.globalDescriptorSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.staticTileDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.playerDescriptorSetLayout, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -1736,7 +1735,6 @@ void Renderer3D::drawFrame()
 
 void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 {
-	// Not optimal for the purpose of small buffers -> use push constants instead
 	static auto startTime = std::chrono::high_resolution_clock::now();
 
 	auto currentTime = std::chrono::high_resolution_clock::now();

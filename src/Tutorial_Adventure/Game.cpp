@@ -48,6 +48,7 @@ void Game::run()
 
 	glfwPollEvents();
 	//glfwGetWindowSize(m_window, &m_width, &m_height);
+	m_activeScene->onUpdate();
 	m_renderer3D->render();
 }
 

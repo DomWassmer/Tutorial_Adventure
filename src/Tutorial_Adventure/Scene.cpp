@@ -96,6 +96,11 @@ void Scene::generateScene_Level1() {
 	}
 }
 
+void Scene::onUpdate()
+{
+	m_player.onUpdate();
+}
+
 void Scene::printCellInfo(int cellNumber) 
 {
 	if (m_cellGrid.empty())

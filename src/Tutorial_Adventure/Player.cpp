@@ -26,11 +26,11 @@ void Player::move() {
 	glm::vec3 moveDirection{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 newPosition = m_position;
 	if (Input::isKeyDown(KeyCode::W))
-		moveDirection.z -= 1.0f;
+		moveDirection.y += 1.0f;
 	if (Input::isKeyDown(KeyCode::A))
 		moveDirection.x -= 1.0f;
 	if (Input::isKeyDown(KeyCode::S))
-		moveDirection.z += 1.0f;
+		moveDirection.y -= 1.0f;
 	if (Input::isKeyDown(KeyCode::D))
 		moveDirection.x += 1.0f;
 	if (moveDirection == glm::vec3{ 0.0f, 0.0f, 0.0f })

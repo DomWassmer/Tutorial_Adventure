@@ -27,7 +27,7 @@ class Player {
 public:
 	glm::vec3 m_position{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 m_lastPosition{ 0.0f, 0.0f, 0.0f }; // Needed for deceleration
-	float m_speed = 0;
+	float m_speed = 1;
 	glm::vec3 m_orientation{ 1.0f, 0.0f, 0.0f };
 	unsigned int m_currentHealth, m_maxHealth;
 	int m_animationFrame, invincibilityFrame, attackCoolDownFrames;
