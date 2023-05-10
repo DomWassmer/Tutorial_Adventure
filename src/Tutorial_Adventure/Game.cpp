@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <iostream>
 
 #include "Game.h"
 
@@ -18,6 +19,8 @@ void Game::init()
 	{
 		throw std::runtime_error("GLFW: failed to create window!");
 	}
+
+	m_lastFrame = std::chrono::high_resolution_clock::now();
 
 	m_renderer3D = std::make_unique<Renderer3D>(Renderer3D());
 	m_renderer3D->init();
@@ -44,6 +47,15 @@ void Game::run()
 	{
 		m_isRunning = false;
 		return;
+	}
+
+	/* Handle Framerate */
+	{
+		auto thisFrame = std::chrono::high_resolution_clock::now();
+		m_elapsedTimeMilliseconds = std::chrono::duration<float, std::chrono::milliseconds::period>
+			(thisFrame - m_lastFrame).count();
+		m_lastFrame = thisFrame;
+		m_framesPerSecond = 1000.0f / m_elapsedTimeMilliseconds;
 	}
 
 	glfwPollEvents();

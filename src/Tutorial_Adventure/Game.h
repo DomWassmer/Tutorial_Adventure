@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include <memory>
+#include <chrono>
 
 #include "Scene.h"
 #include "Renderer3D.h"
@@ -13,6 +14,7 @@ public:
 	bool m_isRunning = false;
 	GLFWwindow* m_window;
 	Settings m_settings;
+	float m_framesPerSecond;
 
 	void init();
 	void run();
@@ -25,4 +27,7 @@ public:
 private:
 	std::unique_ptr<Renderer3D> m_renderer3D;
 	std::shared_ptr<Scene> m_activeScene;
+
+	std::chrono::steady_clock::time_point m_lastFrame;
+	float m_elapsedTimeMilliseconds;
 };

@@ -27,9 +27,9 @@ class Player {
 public:
 	glm::vec3 m_position{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 m_lastPosition{ 0.0f, 0.0f, 0.0f }; // Needed for deceleration
-	float m_speed = 1;
+	float m_speed = 5.0f; // Tiles per second
 	float m_rotationAngle = 0.0f;
-	float m_rotationSpeed = 10.0f;
+	float m_rotationSpeed = 360.0f; //degrees per second
 	bool m_facingRight = true; // Only left and right possible
 	unsigned int m_currentHealth, m_maxHealth;
 	int m_animationFrame, invincibilityFrame, attackCoolDownFrames;

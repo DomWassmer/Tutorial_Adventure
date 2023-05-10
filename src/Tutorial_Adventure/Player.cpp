@@ -53,8 +53,8 @@ void Player::move() {
 		m_animationFrame = 0;
 		m_state = PlayerState::Moving;
 	}
-	if (m_animationFrame < Game::getInstance().m_settings.framerate / 3)
-		moveDirection = moveDirection * m_speed * 0.5f;
+	if (true/*m_animationFrame < Game::getInstance().m_settings.framerate / 3*/)
+		moveDirection = moveDirection * m_speed * 1.0f / Game::getInstance().m_framesPerSecond;
 	else if (m_animationFrame < Game::getInstance().m_settings.framerate / 2)
 		moveDirection = moveDirection * m_speed * 0.75f;
 	else 
@@ -70,9 +70,9 @@ void Player::rotate()
 	if (m_rotationAngle == 0.0f && m_facingRight || m_rotationAngle == 180.0f && !m_facingRight)
 		return;
 	if (m_facingRight)
-		m_rotationAngle -= m_rotationSpeed;
+		m_rotationAngle -= m_rotationSpeed / Game::getInstance().m_framesPerSecond;
 	else
-		m_rotationAngle += m_rotationSpeed;
+		m_rotationAngle += m_rotationSpeed / Game::getInstance().m_framesPerSecond;
 	m_rotationAngle = glm::clamp(m_rotationAngle, 0.0f, 180.0f);
 }
 
