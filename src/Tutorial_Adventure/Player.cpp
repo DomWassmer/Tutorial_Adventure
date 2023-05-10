@@ -20,6 +20,7 @@ void Player::onUpdate()
 {
 	if (m_state == PlayerState::Idle || m_state == PlayerState::Moving)
 		move();
+	rotate();
 }
 
 void Player::move() {
@@ -38,6 +39,11 @@ void Player::move() {
 		/* Deceleration code here */
 		return;
 	}
+	/* Rotation Code */
+	if (moveDirection.x == -1.0f)
+		m_facingRight = false;
+	else if (moveDirection.x == 1.0f)
+		m_facingRight = true;
 
 	/* Acceleration Code */
 	if (moveDirection.x != 0 && moveDirection.z != 0)
@@ -57,6 +63,17 @@ void Player::move() {
 	m_lastPosition = m_position;
 	m_position = possibleNewPosition;
 	m_animationFrame++;
+}
+
+void Player::rotate()
+{
+	if (m_rotationAngle == 0.0f && m_facingRight || m_rotationAngle == 180.0f && !m_facingRight)
+		return;
+	if (m_facingRight)
+		m_rotationAngle -= m_rotationSpeed;
+	else
+		m_rotationAngle += m_rotationSpeed;
+	m_rotationAngle = glm::clamp(m_rotationAngle, 0.0f, 180.0f);
 }
 
 glm::vec3 Player::tryMove(glm::vec3 move)

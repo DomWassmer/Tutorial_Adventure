@@ -579,7 +579,7 @@ void Renderer3D::createGraphicsPipelines()
 		std::string frageShader = SHADER_PATH "playerFrag.spv";
 
 		VkPushConstantRange pushConstantRange{};
-		// For now I only want to access it in the fragment shader. Maybe later use it in frag shader for ambient light to.
+		// For now I only want to access it in the vert shader. Maybe later use it in frag shader for ambient light to.
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(ModelMatrixPushConstant);
@@ -1276,7 +1276,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		// First draw player
 		ModelMatrixPushConstant playerPushConstants{};
 		playerPushConstants.translate = m_activeScene->m_player.m_position;
-		playerPushConstants.rotate = m_activeScene->m_player.m_orientation;
+		playerPushConstants.rotate = static_cast<glm::float32_t>(m_activeScene->m_player.m_rotationAngle);
 		vkCmdPushConstants(commandBuffer, m_actorPipelineRes.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
 			sizeof(ModelMatrixPushConstant), &playerPushConstants);
 		VkBuffer vertexBuffers[] = { m_sceneRessources.playerVertexBuffer };

@@ -27,7 +27,7 @@
 struct ModelMatrixPushConstant {
 	// Alignment rules don't apply for push constants apparently
 	glm::vec3 translate;
-	glm::vec3 rotate;
+	glm::float32_t rotate;
 };
 
 struct UniformBufferCameraObject{

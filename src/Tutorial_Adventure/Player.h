@@ -28,7 +28,9 @@ public:
 	glm::vec3 m_position{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 m_lastPosition{ 0.0f, 0.0f, 0.0f }; // Needed for deceleration
 	float m_speed = 1;
-	glm::vec3 m_orientation{ 1.0f, 0.0f, 0.0f };
+	float m_rotationAngle = 0.0f;
+	float m_rotationSpeed = 10.0f;
+	bool m_facingRight = true; // Only left and right possible
 	unsigned int m_currentHealth, m_maxHealth;
 	int m_animationFrame, invincibilityFrame, attackCoolDownFrames;
 	PlayerState m_state = PlayerState::Idle;
@@ -45,5 +47,6 @@ public:
 	void onUpdate();
 private:
 	void move();
+	void rotate();
 	glm::vec3 tryMove(glm::vec3 move);
 };

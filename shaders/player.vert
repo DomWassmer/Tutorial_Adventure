@@ -14,11 +14,20 @@ layout(location = 1) out vec2 fragTexCoord;
 
 layout(push_constant) uniform Push {
     vec3 transform;
-    vec3 rotation;
+    float rotation;
 } push;
 
+vec3 rotate(vec3 position, float angle) {
+	return vec3(
+		position.x * cos(angle) - position.y * sin(angle),
+		position.x * sin(angle) + position.y * cos(angle),
+		position.z
+	);
+}
+
 void main() {
-	gl_Position = ubo.proj * ubo.view * vec4(inPosition + push.transform, 1.0);
+	vec3 rotatedPosition = rotate(inPosition, radians(push.rotation));
+	gl_Position = ubo.proj * ubo.view * vec4(rotatedPosition + push.transform, 1.0);
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 }
