@@ -26,7 +26,7 @@ struct PlayerAnimationTimes {
 	float animationDuration = 0.0f;
 	float animationUpdateTimer = 0.0f;
 	const float idle_switchSprites = 0.25f;
-	const float move_switchSprites = 0.5f;
+	const float move_switchSprites_01 = 0.25f;
 	float move_startup_01 = 0.3f;
 	float move_startup_02 = 0.7f;
 };

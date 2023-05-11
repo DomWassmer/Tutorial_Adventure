@@ -119,9 +119,24 @@ void Player::updateAnimation()
 			m_spriteIndex = 0;
 			m_animations.animationUpdateTimer = Game::getInstance().m_elapsedTimeSeconds;
 		}
+		return;
 	}
+
 	if (m_animations.activeAnimation == PlayerAnimations::Moving)
 	{
-		
+		if (m_animations.animationUpdateTimer < m_animations.move_switchSprites_01)
+			m_spriteIndex = 0;
+		else if (m_animations.animationUpdateTimer < 2 * m_animations.move_switchSprites_01)
+			m_spriteIndex = 2;
+		else if (m_animations.animationUpdateTimer < 3 * m_animations.move_switchSprites_01)
+			m_spriteIndex = 1;
+		else if (m_animations.animationUpdateTimer < 4 * m_animations.move_switchSprites_01)
+			m_spriteIndex = 2;
+		else
+		{
+			m_spriteIndex = 0;
+			m_animations.animationUpdateTimer = Game::getInstance().m_elapsedTimeSeconds;
+		}
+		return;
 	}
 }
