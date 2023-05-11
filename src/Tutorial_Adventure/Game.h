@@ -15,6 +15,7 @@ public:
 	GLFWwindow* m_window;
 	Settings m_settings;
 	float m_framesPerSecond;
+	float m_elapsedTimeSeconds;
 
 	void init();
 	void run();
@@ -29,5 +30,4 @@ private:
 	std::shared_ptr<Scene> m_activeScene;
 
 	std::chrono::steady_clock::time_point m_lastFrame;
-	float m_elapsedTimeMilliseconds;
 };

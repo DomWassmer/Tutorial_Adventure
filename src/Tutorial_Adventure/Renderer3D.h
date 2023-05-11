@@ -84,8 +84,8 @@ public:
 		VkImageView playerTextureImageView;
 		VkBuffer playerVertexBuffer;
 		VkDeviceMemory playerVertexBufferMemory;
-		VkBuffer playerIndexBuffer;
-		VkDeviceMemory playerIndexBufferMemory;
+		std::vector<VkBuffer> playerIndexBuffers;
+		std::vector<VkDeviceMemory> playerIndexBufferMemories;
 		std::vector<Vertex> playerVertices;
 		std::vector<uint16_t> playerIndices;
 	};

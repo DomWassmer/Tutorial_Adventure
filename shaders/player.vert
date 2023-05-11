@@ -6,11 +6,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inColor;
-layout(location = 2) in vec2 inTexCoord;
+layout(location = 1) in vec2 inTexCoord;
 
-layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 fragTexCoord;
+layout(location = 0) out vec2 fragTexCoord;
 
 layout(push_constant) uniform Push {
     vec3 transform;
@@ -28,6 +26,5 @@ vec3 rotate(vec3 position, float angle) {
 void main() {
 	vec3 rotatedPosition = rotate(inPosition, radians(push.rotation));
 	gl_Position = ubo.proj * ubo.view * vec4(rotatedPosition + push.transform, 1.0);
-	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 }

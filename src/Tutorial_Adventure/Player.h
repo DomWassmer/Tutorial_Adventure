@@ -12,15 +12,23 @@ enum class PlayerState {
 	Idle, Moving, Attacking, Dodging, Casting, Hit, Using, Dying, Spawning, Knockbacked
 };
 
-struct PlayerFrames {
+enum class PlayerAnimations {
+	Idle, Moving, Attacking
+};
+
+struct PlayerAnimationTimes {
 	/*
 	Struct that contains all the frame threshholds for when 
 	an animation should be played and which sprite should be used in 
-	addition 
+	addition. Times are given in seconds
 	*/
-	int move_startup_01;
-	int move_startup_02;
-	int move_fullspeed_03;
+	PlayerAnimations activeAnimation = PlayerAnimations::Idle;
+	float animationDuration = 0.0f;
+	float animationUpdateTimer = 0.0f;
+	const float idle_switchSprites = 0.25f;
+	const float move_switchSprites = 0.5f;
+	float move_startup_01 = 0.3f;
+	float move_startup_02 = 0.7f;
 };
 
 class Player {
@@ -29,17 +37,17 @@ public:
 	glm::vec3 m_lastPosition{ 0.0f, 0.0f, 0.0f }; // Needed for deceleration
 	float m_speed = 5.0f; // Tiles per second
 	float m_rotationAngle = 0.0f;
-	float m_rotationSpeed = 360.0f; //degrees per second
+	float m_rotationSpeed = 540.0f; //degrees per second
 	bool m_facingRight = true; // Only left and right possible
 	unsigned int m_currentHealth, m_maxHealth;
-	int m_animationFrame, invincibilityFrame, attackCoolDownFrames;
+	int invincibilityFrame, attackCoolDownFrames;
 	PlayerState m_state = PlayerState::Idle;
-	int m_spriteIndex = -1;
+	int m_spriteIndex = 0;
 	int m_hitBoxIndex = -1;
 	Weapon* m_weapon;
 	Spell* m_spell;
 	Armor* m_armor;
-	PlayerFrames m_frames;
+	PlayerAnimationTimes m_animations;
 
 	Player() = default;
 	void init();
@@ -49,4 +57,6 @@ private:
 	void move();
 	void rotate();
 	glm::vec3 tryMove(glm::vec3 move);
+	void startAnimation(PlayerAnimations animation);
+	void updateAnimation();
 };

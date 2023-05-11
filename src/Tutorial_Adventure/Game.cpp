@@ -52,10 +52,10 @@ void Game::run()
 	/* Handle Framerate */
 	{
 		auto thisFrame = std::chrono::high_resolution_clock::now();
-		m_elapsedTimeMilliseconds = std::chrono::duration<float, std::chrono::milliseconds::period>
+		m_elapsedTimeSeconds = std::chrono::duration<float, std::chrono::seconds::period>
 			(thisFrame - m_lastFrame).count();
 		m_lastFrame = thisFrame;
-		m_framesPerSecond = 1000.0f / m_elapsedTimeMilliseconds;
+		m_framesPerSecond = 1.0f / m_elapsedTimeSeconds;
 	}
 
 	glfwPollEvents();

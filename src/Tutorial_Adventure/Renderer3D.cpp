@@ -18,6 +18,7 @@ const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validati
 #endif // USE_VK_VALIDATION_LAYERS
 #endif // DEBUG
 std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE1_EXTENSION_NAME };
+const int MAX_NUMBER_OF_PLAYER_SPRITES = 3;
 
 #define ASSET_PATH "../../../assets/"
 #define SHADER_PATH "../../../shaders/"
@@ -735,7 +736,6 @@ void Renderer3D::createVertexAndIndexBuffers()
 		}
 	}
 
-
 	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
 	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
 		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
@@ -745,21 +745,40 @@ void Renderer3D::createVertexAndIndexBuffers()
 	
 	// Player buffer creation
 	{
-		float offset = 8.0 / 16.0f;
+		const float offset = 8.0 / 16.0f;
+
 		m_sceneRessources.playerVertices = {
-			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.5f}},
-			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.25f, 0.5f}},
-			/* TopRight    */{{2.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}, {0.25f, 0.0f}},
-			/* TopLeft     */{{0.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}}
+			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.5f}},
+			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.25f, 0.5f}},
+			/* TopRight    */{{2.0f - offset, 0.0f, 2.0f}, {0.25f, 0.0f}},
+			/* TopLeft     */{{0.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f}},
+			/* Second Sprite */{{0.0f - offset, 0.0f, 0.0f}, {0.25f, 0.5f}},
+			{{2.0f - offset, 0.0f, 0.0f}, {0.5f, 0.5f}},
+			{{2.0f - offset, 0.0f, 2.0f}, {0.5f, 0.0f}},
+			{{0.0f - offset, 0.0f, 2.0f}, {0.25f, 0.0f}},
+			/* Third Sprite */{{0.0f - offset, 0.0f, 0.0f}, {0.5f, 0.5f}},
+			{{2.0f - offset, 0.0f, 0.0f}, {0.75f, 0.5f}},
+			{{2.0f - offset, 0.0f, 2.0f}, {0.75f, 0.0f}},
+			{{0.0f - offset, 0.0f, 2.0f}, {0.5f, 0.0f}}
 		};
-		m_sceneRessources.playerIndices = { 0, 1, 2, 2, 3, 0 };
 		
 		VkDeviceSize bufferSize = sizeof(Vertex) * m_sceneRessources.playerVertices.size();
 		createVertexBuffer(bufferSize, m_sceneRessources.playerVertices.data(),
 			m_sceneRessources.playerVertexBuffer, m_sceneRessources.playerVertexBufferMemory);
-		bufferSize = sizeof(uint16_t) * m_sceneRessources.playerIndices.size();
-		createIndexBuffer(bufferSize, m_sceneRessources.playerIndices.data(),
-			m_sceneRessources.playerIndexBuffer, m_sceneRessources.playerIndexBufferMemory);
+
+		//m_sceneRessources.playerIndices.resize(MAX_NUMBER_OF_PLAYER_SPRITES * 6);
+		m_sceneRessources.playerIndexBuffers.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
+		m_sceneRessources.playerIndexBufferMemories.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
+		for (uint16_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
+		{
+			uint16_t var = i * 4;
+			std::vector<uint16_t> tmp = { (uint16_t)(0 + var), (uint16_t)(1 + var), (uint16_t)(2 + var),
+				(uint16_t)(2 + var), (uint16_t)(3 + var), (uint16_t)(0 + var) };
+			m_sceneRessources.playerIndices.insert(m_sceneRessources.playerIndices.end(), tmp.begin(), tmp.end());
+			bufferSize = sizeof(uint16_t) * tmp.size();
+			createIndexBuffer(bufferSize, tmp.data(),
+				m_sceneRessources.playerIndexBuffers[i], m_sceneRessources.playerIndexBufferMemories[i]);
+		}
 	}
 }
 
@@ -1000,8 +1019,12 @@ void Renderer3D::cleanupSceneRessources()
 
 	vkDestroyBuffer(m_device, m_sceneRessources.playerVertexBuffer, nullptr);
 	vkFreeMemory(m_device, m_sceneRessources.playerVertexBufferMemory, nullptr);
-	vkDestroyBuffer(m_device, m_sceneRessources.playerIndexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemory, nullptr);
+	
+	for (size_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
+	{
+		vkDestroyBuffer(m_device, m_sceneRessources.playerIndexBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemories[i], nullptr);
+	}
 
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_sceneRessources.globalDescriptorSetLayout, nullptr);
@@ -1273,7 +1296,6 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	*/
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.graphicsPipeline);
-		// First draw player
 		ModelMatrixPushConstant playerPushConstants{};
 		playerPushConstants.translate = m_activeScene->m_player.m_position;
 		playerPushConstants.rotate = static_cast<glm::float32_t>(m_activeScene->m_player.m_rotationAngle);
@@ -1282,7 +1304,8 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		VkBuffer vertexBuffers[] = { m_sceneRessources.playerVertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffers[m_activeScene->m_player.m_spriteIndex],
+			0, VK_INDEX_TYPE_UINT16);
 		// Bind descriptor sets (Global is set zero, object related stuff is set one)
 		// However if another actor is drawn only object related set has to be bound again.
 		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
@@ -1290,7 +1313,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		m_sceneRessources.playerDescriptorSets[m_currentFrame] };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
 			0, 2, descriptorSetsToBind.data(), 0, nullptr);
-		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.playerIndices.size(), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)(m_sceneRessources.playerIndices.size() / MAX_NUMBER_OF_PLAYER_SPRITES), 1, 0, 0, 0);
 	}
 
 	vkCmdEndRenderPass(commandBuffer);
