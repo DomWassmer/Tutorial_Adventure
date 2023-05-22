@@ -15,6 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.h>
 
+#include "DescManager.h"
 #include "Scene.h"
 #include "Vertex.h"
 
@@ -57,15 +58,11 @@ public:
 
 	struct SceneRessources {
 		// Global Ressources (camera, ambient light)
-		VkDescriptorSetLayout globalDescriptorSetLayout;
-		std::vector<VkDescriptorSet> globalDescriptorSets;
 		std::vector<VkBuffer> globalUniformBuffers;
 		std::vector<VkDeviceMemory> globalUniformBuffersMemory;
 		std::vector<void*> globalUniformBuffersMapped;
 
 		// StaticTileRessources
-		VkDescriptorSetLayout staticTileDescriptorSetLayout;
-		std::vector<VkDescriptorSet> staticTileDescriptorSets;
 		VkImage staticTileTextureImage;
 		VkDeviceMemory staticTileTextureImageMemory;
 		VkImageView staticTileTextureImageView;
@@ -77,8 +74,6 @@ public:
 		std::vector<uint16_t> staticTileIndices;
 
 		// Player Ressources
-		VkDescriptorSetLayout playerDescriptorSetLayout;
-		std::vector<VkDescriptorSet> playerDescriptorSets;
 		VkImage playerTextureImage;
 		VkDeviceMemory playerTextureImageMemory;
 		VkImageView playerTextureImageView;
@@ -98,8 +93,13 @@ public:
 public:
 	bool m_framebufferResized = false;
 	std::shared_ptr<Scene> m_activeScene;
-
+	VkDevice m_device;
+	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
+	int MAX_FRAMES_IN_FLIGHT = 2;
+	uint32_t m_currentFrame = 0;
 public:
+	Renderer3D();
+
 	void init();
 	void generateSceneRessources();
 	void render();
@@ -175,10 +175,6 @@ private:
 	void updatePushConstants(uint32_t currentImage);
 
 private:
-	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
-	int MAX_FRAMES_IN_FLIGHT = 2;
-	uint32_t m_currentFrame = 0;
-
 	bool m_init = false;
 	int m_width = 800;
 	int m_height = 600;
@@ -187,7 +183,6 @@ private:
 	VkSurfaceKHR m_surface;
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue m_presentQueue;
-	VkDevice m_device;
 	VkQueue m_graphicsQueue;
 	VkSwapchainKHR m_swapChain;
 	std::vector<VkImage> m_swapChainImages;
@@ -203,12 +198,12 @@ private:
 	VkCommandPool m_commandPool;
 	std::vector<VkCommandBuffer> m_commandBuffers;
 	VkSampler m_textureSamplerNearest;
-	VkDescriptorPool m_descriptorPool;
 	std::vector<VkImage> m_depthImages;
 	std::vector<VkDeviceMemory> m_depthImageMemories;
 	std::vector<VkImageView> m_depthImageViews;
 
 	SceneRessources m_sceneRessources;
+	DescManager m_descriptorManager;
 
 	//Main Loop
 	std::vector<VkSemaphore> m_imageAvailableSemaphores; // Semaphores handle order of operations on the gpu

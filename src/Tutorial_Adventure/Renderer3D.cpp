@@ -30,6 +30,8 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	app->m_framebufferResized = true;
 }
 
+Renderer3D::Renderer3D() : m_descriptorManager(DescManager(this)) {}
+
 void Renderer3D::init()
 {
 	if (m_init)
@@ -512,58 +514,19 @@ void Renderer3D::createRenderPass()
 void Renderer3D::createDescriptorSetLayout()
 {
 	// Global Set Layout
-	{
-		VkDescriptorSetLayoutBinding uboLayoutBinding{};
-		uboLayoutBinding.binding = 0;
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboLayoutBinding.descriptorCount = 1;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo{};
-		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = 1;
-		layoutInfo.pBindings = &uboLayoutBinding;
-
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.globalDescriptorSetLayout) != VK_SUCCESS)
-			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
-	}
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, 1, VK_SHADER_STAGE_VERTEX_BIT)
+		.buildLayout("global");
 
 	// Static Tile Set Layout
-	{
-		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-		samplerLayoutBinding.binding = 0;
-		samplerLayoutBinding.descriptorCount = 1;
-		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding.pImmutableSamplers = nullptr;
-		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo{};
-		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = 1;
-		layoutInfo.pBindings = &samplerLayoutBinding;
-		
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.staticTileDescriptorSetLayout) != VK_SUCCESS)
-			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
-	}
-
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
+		.buildLayout("staticTile");
+	
 	// Player Set Layout
-	{
-		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-		samplerLayoutBinding.binding = 0;
-		samplerLayoutBinding.descriptorCount = 1;
-		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding.pImmutableSamplers = nullptr;
-		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo{};
-		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = 1;
-		layoutInfo.pBindings = &samplerLayoutBinding;
-
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_sceneRessources.playerDescriptorSetLayout) != VK_SUCCESS)
-			throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
-	}
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
+		.buildLayout("player");
 }
 
 void Renderer3D::createGraphicsPipelines()
@@ -571,7 +534,7 @@ void Renderer3D::createGraphicsPipelines()
 	{
 		std::string vertShader = SHADER_PATH "StaticTileVert.spv";
 		std::string frageShader = SHADER_PATH "StaticTileFrag.spv";
-		createGraphicsPipeline(vertShader, frageShader, m_sceneRessources.staticTileDescriptorSetLayout, 
+		createGraphicsPipeline(vertShader, frageShader, m_descriptorManager.getLayout("staticTile"),
 			nullptr, m_staticPipelineRes);
 	}
 
@@ -584,7 +547,7 @@ void Renderer3D::createGraphicsPipelines()
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(ModelMatrixPushConstant);
-		createGraphicsPipeline(vertShader, frageShader, m_sceneRessources.playerDescriptorSetLayout, 
+		createGraphicsPipeline(vertShader, frageShader, m_descriptorManager.getLayout("player"),
 			&pushConstantRange, m_actorPipelineRes);
 	}
 }
@@ -805,23 +768,13 @@ void Renderer3D::createUniformBuffers()
 
 void Renderer3D::createDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 2> poolSizes{};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = (uint32_t)(2 * MAX_FRAMES_IN_FLIGHT);
-
-	VkDescriptorPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
-	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 3 * (uint32_t)MAX_FRAMES_IN_FLIGHT; // 3 * Because currently uses sets: 1 global and 2 object specific set.
-	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor pool!");
+	m_descriptorManager.createDescriptorPool();
 }
 
 void Renderer3D::createDescriptorSets()
 {
+	m_descriptorManager.createDescriptorSets();
+
 	// Code Abstraction neccessary
 	// global Descriptor Set
 	{
