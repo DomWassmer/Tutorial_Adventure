@@ -17,7 +17,19 @@ void Camera::OnResize()
 void Camera::OnUpdate()
 {
 	const auto& player = Game::getInstance().getActiveScene()->m_player;
+	m_position.x = player.m_position.x;
+	m_position.y = player.m_position.y - m_cameraHorizontalDistance;
 	setViewTarget(player.m_position, m_position);
+}
+
+void Camera::setCameraHorizontalDistance(float distance)
+{
+	m_cameraHorizontalDistance = distance;
+}
+
+void Camera::setCameraHeight(float height)
+{
+	m_position.z = height;
 }
 
 void Camera::setProjection(float aspect) 

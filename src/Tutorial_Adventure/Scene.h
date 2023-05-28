@@ -37,6 +37,7 @@ public:
 
 	[[nodiscard]] static std::shared_ptr<Scene> generateScene(SceneType sceneType);
 	
+	void onUpdate();
 	void printCellInfo(int cellNumber); 
 
 private:

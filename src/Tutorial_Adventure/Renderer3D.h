@@ -15,6 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.h>
 
+#include "DescManager.h"
 #include "Scene.h"
 #include "Vertex.h"
 
@@ -24,8 +25,13 @@
 #define STATIC_TILE_TEXTURE_MODULAR 10
 
 // MVP: Model-View-Projection Matrices
-struct UniformBufferObject {
-	alignas(16) glm::mat4 model;
+struct ModelMatrixPushConstant {
+	// Alignment rules don't apply for push constants apparently
+	glm::vec3 translate;
+	glm::float32_t rotate;
+};
+
+struct UniformBufferCameraObject{
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
 };
@@ -51,6 +57,11 @@ public:
 	};
 
 	struct SceneRessources {
+		// Global Ressources (camera, ambient light)
+		std::vector<VkBuffer> globalUniformBuffers;
+		std::vector<VkDeviceMemory> globalUniformBuffersMemory;
+		std::vector<void*> globalUniformBuffersMapped;
+
 		// StaticTileRessources
 		VkImage staticTileTextureImage;
 		VkDeviceMemory staticTileTextureImageMemory;
@@ -61,13 +72,34 @@ public:
 		VkDeviceMemory staticTileIndexBufferMemory;
 		std::vector<StaticTileVertex> staticTileVertices;
 		std::vector<uint16_t> staticTileIndices;
+
+		// Player Ressources
+		VkImage playerTextureImage;
+		VkDeviceMemory playerTextureImageMemory;
+		VkImageView playerTextureImageView;
+		VkBuffer playerVertexBuffer;
+		VkDeviceMemory playerVertexBufferMemory;
+		std::vector<VkBuffer> playerIndexBuffers;
+		std::vector<VkDeviceMemory> playerIndexBufferMemories;
+		std::vector<Vertex> playerVertices;
+		std::vector<uint16_t> playerIndices;
+	};
+
+	struct GraphicsPipelineRessources {
+		VkPipelineLayout pipelineLayout;
+		VkPipeline graphicsPipeline;
 	};
 
 public:
 	bool m_framebufferResized = false;
 	std::shared_ptr<Scene> m_activeScene;
-
+	VkDevice m_device;
+	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
+	int MAX_FRAMES_IN_FLIGHT = 2;
+	uint32_t m_currentFrame = 0;
 public:
+	Renderer3D();
+
 	void init();
 	void generateSceneRessources();
 	void render();
@@ -92,9 +124,8 @@ private:
 	void createImageViews();
 	void createRenderPass();
 	void createDescriptorSetLayout();
-	void createGraphicsPipeline();
 
-	// Scene specifics
+	void createGraphicsPipelines();
 	void createFramebuffers();
 	void createCommandPool();
 	void createDepthRessources();
@@ -113,6 +144,9 @@ private:
 	// Helper Functions
 	std::vector<char> readShaderFromFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
+	void createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
+		const std::vector<VkDescriptorSetLayout>& i_descriptorSetLayouts, VkPushConstantRange* i_pushConstantRange,
+		GraphicsPipelineRessources& pipelineRessources);
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
@@ -138,12 +172,9 @@ private:
 	// Main Loop
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
+	void updatePushConstants(uint32_t currentImage);
 
 private:
-	// With 2 frames in flight the Cpu can always work on the next frame while gpu processes current.
-	int MAX_FRAMES_IN_FLIGHT = 2;
-	uint32_t m_currentFrame = 0;
-
 	bool m_init = false;
 	int m_width = 800;
 	int m_height = 600;
@@ -152,40 +183,27 @@ private:
 	VkSurfaceKHR m_surface;
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue m_presentQueue;
-	VkDevice m_device;
 	VkQueue m_graphicsQueue;
 	VkSwapchainKHR m_swapChain;
 	std::vector<VkImage> m_swapChainImages;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
 
-	// Probably extracted into own image class of a renderer
 	std::vector<VkImageView> m_swapChainImageViews;
-	VkDescriptorSetLayout m_descriptorSetLayout;
-	VkPipelineLayout m_pipelineLayout;
+	GraphicsPipelineRessources m_staticPipelineRes;
+	GraphicsPipelineRessources m_actorPipelineRes;
 	VkRenderPass m_renderPass;
-	VkPipeline m_graphicsPipeline;
+	
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 	VkCommandPool m_commandPool;
 	std::vector<VkCommandBuffer> m_commandBuffers;
-	VkImage m_textureImage;
-	VkDeviceMemory m_textureImageMemory;
-	VkImageView m_textureImageView;
 	VkSampler m_textureSamplerNearest;
-	VkBuffer m_vertexBuffer;
-	VkDeviceMemory m_vertexBufferMemory;
-	VkBuffer m_indexBuffer;
-	VkDeviceMemory m_indexBufferMemory;
-	std::vector<VkBuffer> m_uniformBuffers;
-	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
-	std::vector<void*> m_uniformBuffersMapped;
-	VkDescriptorPool m_descriptorPool;
-	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<VkImage> m_depthImages;
 	std::vector<VkDeviceMemory> m_depthImageMemories;
 	std::vector<VkImageView> m_depthImageViews;
 
 	SceneRessources m_sceneRessources;
+	DescManager m_descriptorManager;
 
 	//Main Loop
 	std::vector<VkSemaphore> m_imageAvailableSemaphores; // Semaphores handle order of operations on the gpu

@@ -18,9 +18,12 @@ const std::vector<const char*> g_validationLayers = { "VK_LAYER_KHRONOS_validati
 #endif // USE_VK_VALIDATION_LAYERS
 #endif // DEBUG
 std::vector<const char*> g_deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE1_EXTENSION_NAME };
+const int MAX_NUMBER_OF_PLAYER_SPRITES = 3;
 
 #define ASSET_PATH "../../../assets/"
 #define SHADER_PATH "../../../shaders/"
+
+#define VERBOSE
 
 // Can't be a member function because compiler changes member function to non-member function func(this, args)
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
@@ -28,6 +31,8 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	auto app = reinterpret_cast<Renderer3D*>(glfwGetWindowUserPointer(window));
 	app->m_framebufferResized = true;
 }
+
+Renderer3D::Renderer3D() : m_descriptorManager(DescManager(this)) {}
 
 void Renderer3D::init()
 {
@@ -48,7 +53,7 @@ void Renderer3D::generateSceneRessources()
 	createImageViews();
 	createRenderPass();
 	createDescriptorSetLayout();
-	createGraphicsPipeline();
+	createGraphicsPipelines();
 	createCommandPool();
 	createDepthRessources();
 	createFramebuffers();
@@ -85,23 +90,6 @@ void Renderer3D::cleanup()
 
 	cleanupSceneRessources();
 
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
-	}
-
-	//vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-	//vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
-
-	//vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
-	//vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
-
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
 	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -211,7 +199,6 @@ void Renderer3D::pickPhysicalDevice()
 	if (!m_physicalDevice)
 		throw std::runtime_error("failed to find a suitable GPU");
 
-
 #ifdef VERBOSE
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(m_physicalDevice, &deviceProperties);
@@ -283,7 +270,6 @@ Renderer3D::QueueFamilyIndices Renderer3D::findQueueFamilies(VkPhysicalDevice de
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 	for (size_t i = 0; i < queueFamilyCount; i++)
 	{
-		// Why bitwise and?
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			indices.graphicsFamily = i;
 		VkBool32 presentSupport = false;
@@ -291,7 +277,6 @@ Renderer3D::QueueFamilyIndices Renderer3D::findQueueFamilies(VkPhysicalDevice de
 		if (presentSupport)
 			indices.presentFamily = i;
 	}
-
 
 	return indices;
 }
@@ -414,6 +399,7 @@ void Renderer3D::createSwapChain()
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
 		imageCount = swapChainSupport.capabilities.maxImageCount;
+	MAX_FRAMES_IN_FLIGHT = imageCount;
 
 	MAX_FRAMES_IN_FLIGHT = imageCount;
 	VkSwapchainCreateInfoKHR createInfo{};
@@ -528,39 +514,448 @@ void Renderer3D::createRenderPass()
 
 void Renderer3D::createDescriptorSetLayout()
 {
-	VkDescriptorSetLayoutBinding uboLayoutBinding{};
-	uboLayoutBinding.binding = 0;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+	// Global Set Layout
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, 1, VK_SHADER_STAGE_VERTEX_BIT)
+		.buildLayout("global");
 
-	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings =
-	{ uboLayoutBinding, samplerLayoutBinding };
-
-	VkDescriptorSetLayoutCreateInfo layoutInfo{};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = (uint32_t)bindings.size();
-	layoutInfo.pBindings = bindings.data();
-
-	if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor set layout!");
+	// Static Tile Set Layout
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
+		.buildLayout("staticTile");
+	
+	// Player Set Layout
+	m_descriptorManager.startLayout()
+		.addLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
+		.buildLayout("player");
 }
 
-void Renderer3D::createGraphicsPipeline()
+void Renderer3D::createGraphicsPipelines()
 {
-	auto vertShaderCode = readShaderFromFile(SHADER_PATH "StaticTileVert.spv");
-	auto fragShaderCode = readShaderFromFile(SHADER_PATH "StaticTileFrag.spv");
+	{
+		std::string vertShader = SHADER_PATH "StaticTileVert.spv";
+		std::string frageShader = SHADER_PATH "StaticTileFrag.spv";
+		std::vector<VkDescriptorSetLayout> layouts = {
+			m_descriptorManager.getLayout("global"),
+			m_descriptorManager.getLayout("staticTile")
+		};
+		createGraphicsPipeline(vertShader, frageShader, layouts, nullptr, m_staticPipelineRes);
+	}
+
+	{
+		std::string vertShader = SHADER_PATH "playerVert.spv";
+		std::string frageShader = SHADER_PATH "playerFrag.spv";
+
+		VkPushConstantRange pushConstantRange{};
+		// For now I only want to access it in the vert shader. Maybe later use it in frag shader for ambient light to.
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(ModelMatrixPushConstant);
+		std::vector<VkDescriptorSetLayout> layouts = {
+			m_descriptorManager.getLayout("global"),
+			m_descriptorManager.getLayout("player")
+		};
+		createGraphicsPipeline(vertShader, frageShader, layouts, &pushConstantRange, m_actorPipelineRes);
+	}
+}
+
+void Renderer3D::createFramebuffers()
+{
+	m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
+	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+	{
+		std::array<VkImageView, 2> attachments = { m_swapChainImageViews[i], m_depthImageViews[i] };
+
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = m_renderPass;
+		framebufferInfo.attachmentCount = (uint32_t)attachments.size();
+		framebufferInfo.pAttachments = attachments.data();
+		framebufferInfo.width = m_swapChainExtent.width;
+		framebufferInfo.height = m_swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+		if (vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS)
+			throw std::runtime_error("VK: failed to create framebuffer!");
+	}
+}
+
+void Renderer3D::createCommandPool()
+{
+	QueueFamilyIndices queueFamiliyIndices = findQueueFamilies(m_physicalDevice);
+	VkCommandPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	poolInfo.queueFamilyIndex = queueFamiliyIndices.graphicsFamily.value();
+	if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool))
+		throw std::runtime_error("VK: failed to create command pool!");
+}
+
+void Renderer3D::createDepthRessources()
+{
+	VkFormat depthFormat = findDepthFormat();
+	m_depthImages.resize(MAX_FRAMES_IN_FLIGHT);
+	m_depthImageMemories.resize(MAX_FRAMES_IN_FLIGHT);
+	m_depthImageViews.resize(MAX_FRAMES_IN_FLIGHT);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		createImage(m_swapChainExtent.width, m_swapChainExtent.height,
+			depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_depthImages[i], m_depthImageMemories[i]);
+		m_depthImageViews[i] = createImageView(m_depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+		transitionImageLayout(m_depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	}
+}
+
+void Renderer3D::createTextures()
+{
+	{
+		std::string FloorTextureFile = ASSET_PATH "Sprite Floor Tiles.png";
+		createTextureImage(FloorTextureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
+			m_sceneRessources.staticTileTextureImageMemory);
+		m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
+			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
+
+	{
+		std::string PlayerTextureFile = ASSET_PATH "Walpurgia.png";
+		createTextureImage(PlayerTextureFile.c_str(), m_sceneRessources.playerTextureImage,
+			m_sceneRessources.playerTextureImageMemory);
+		m_sceneRessources.playerTextureImageView = createImageView(m_sceneRessources.playerTextureImage,
+			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
+}
+
+void Renderer3D::createTextureSampler()
+{
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_NEAREST;
+	samplerInfo.minFilter = VK_FILTER_NEAREST;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSamplerNearest) != VK_SUCCESS)
+		throw std::runtime_error("VUlkan: failed to create texture sampler!");
+}
+
+void Renderer3D::createVertexAndIndexBuffers()
+{
+	// Static tile vertex buffer creation
+	for (size_t i = 0; i < m_activeScene->m_cellGrid.size(); i++)
+	{
+		const Cell& cell = m_activeScene->m_cellGrid[i];
+		for (size_t j = 0; j < cell.m_staticTiles.size(); j++)
+		{
+			const Tile& staticTile = cell.m_staticTiles[j];
+			auto spriteTexCoords = queryStaticTileTextureCoords(staticTile.m_spriteIndex, staticTile.m_rotation);
+
+			StaticTileVertex vertexBottomLeft;
+			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z;
+			vertexBottomLeft.texCoord = spriteTexCoords[0];
+			
+			StaticTileVertex vertexBottomRight;
+			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z;
+			vertexBottomRight.texCoord = spriteTexCoords[1];
+
+			StaticTileVertex vertexTopRight;
+			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopRight.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopRight.worldPos.z = staticTile.m_gridLocation.z;
+			vertexTopRight.texCoord = spriteTexCoords[2];
+
+			StaticTileVertex vertexTopLeft;
+			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopLeft.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopLeft.worldPos.z = staticTile.m_gridLocation.z;
+			vertexTopLeft.texCoord = spriteTexCoords[3];
+
+			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
+			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
+			m_sceneRessources.staticTileVertices.push_back(vertexBottomRight);
+			m_sceneRessources.staticTileVertices.push_back(vertexTopRight);
+			m_sceneRessources.staticTileVertices.push_back(vertexTopLeft);
+			m_sceneRessources.staticTileIndices.insert(m_sceneRessources.staticTileIndices.end(),
+				{
+				(uint16_t)(numVerticesBefore + 0),
+				(uint16_t)(numVerticesBefore + 1),
+				(uint16_t)(numVerticesBefore + 2),
+				(uint16_t)(numVerticesBefore + 2),
+				(uint16_t)(numVerticesBefore + 3),
+				(uint16_t)(numVerticesBefore + 0)
+				}
+			);
+		}
+	}
+
+	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
+	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
+		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
+	bufferSize = sizeof(uint16_t) * m_sceneRessources.staticTileIndices.size();
+	createIndexBuffer(bufferSize, m_sceneRessources.staticTileIndices.data(),
+		m_sceneRessources.staticTileIndexBuffer, m_sceneRessources.staticTileIndexBufferMemory);
+	
+	// Player buffer creation
+	{
+		const float offset = 8.0 / 16.0f;
+
+		m_sceneRessources.playerVertices = {
+			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.5f}},
+			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.25f, 0.5f}},
+			/* TopRight    */{{2.0f - offset, 0.0f, 2.0f}, {0.25f, 0.0f}},
+			/* TopLeft     */{{0.0f - offset, 0.0f, 2.0f}, {0.0f, 0.0f}},
+			/* Second Sprite */{{0.0f - offset, 0.0f, 0.0f}, {0.25f, 0.5f}},
+			{{2.0f - offset, 0.0f, 0.0f}, {0.5f, 0.5f}},
+			{{2.0f - offset, 0.0f, 2.0f}, {0.5f, 0.0f}},
+			{{0.0f - offset, 0.0f, 2.0f}, {0.25f, 0.0f}},
+			/* Third Sprite */{{0.0f - offset, 0.0f, 0.0f}, {0.5f, 0.5f}},
+			{{2.0f - offset, 0.0f, 0.0f}, {0.75f, 0.5f}},
+			{{2.0f - offset, 0.0f, 2.0f}, {0.75f, 0.0f}},
+			{{0.0f - offset, 0.0f, 2.0f}, {0.5f, 0.0f}}
+		};
+		
+		VkDeviceSize bufferSize = sizeof(Vertex) * m_sceneRessources.playerVertices.size();
+		createVertexBuffer(bufferSize, m_sceneRessources.playerVertices.data(),
+			m_sceneRessources.playerVertexBuffer, m_sceneRessources.playerVertexBufferMemory);
+
+		//m_sceneRessources.playerIndices.resize(MAX_NUMBER_OF_PLAYER_SPRITES * 6);
+		m_sceneRessources.playerIndexBuffers.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
+		m_sceneRessources.playerIndexBufferMemories.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
+		for (uint16_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
+		{
+			uint16_t var = i * 4;
+			std::vector<uint16_t> tmp = { (uint16_t)(0 + var), (uint16_t)(1 + var), (uint16_t)(2 + var),
+				(uint16_t)(2 + var), (uint16_t)(3 + var), (uint16_t)(0 + var) };
+			m_sceneRessources.playerIndices.insert(m_sceneRessources.playerIndices.end(), tmp.begin(), tmp.end());
+			bufferSize = sizeof(uint16_t) * tmp.size();
+			createIndexBuffer(bufferSize, tmp.data(),
+				m_sceneRessources.playerIndexBuffers[i], m_sceneRessources.playerIndexBufferMemories[i]);
+		}
+	}
+}
+
+void Renderer3D::createUniformBuffers()
+{
+	// Global Uniform Buffers
+	{
+		VkDeviceSize bufferSize = sizeof(UniformBufferCameraObject);
+		m_sceneRessources.globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+		m_sceneRessources.globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+		m_sceneRessources.globalUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				m_sceneRessources.globalUniformBuffers[i], m_sceneRessources.globalUniformBuffersMemory[i]);
+			// Persistent Mapping
+			vkMapMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], 0, bufferSize, 
+				0, &m_sceneRessources.globalUniformBuffersMapped[i]);
+		}
+	}
+}
+
+void Renderer3D::createDescriptorPool()
+{
+	m_descriptorManager.createDescriptorPool();
+}
+
+void Renderer3D::createDescriptorSets()
+{
+	
+	// global Descriptor Set
+	m_descriptorManager.startSets("global")
+		.addPerFrameBufferInfo(m_sceneRessources.globalUniformBuffers, 0, sizeof(UniformBufferCameraObject))
+		.buildSets();
+
+	// Static Tile Descriptor Set
+	m_descriptorManager.startSets("staticTile")
+		.addImageInfo(m_sceneRessources.staticTileTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			m_textureSamplerNearest)
+		.buildSets();
+	
+	// Player Descriptor Set
+	m_descriptorManager.startSets("player")
+		.addImageInfo(m_sceneRessources.playerTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			m_textureSamplerNearest)
+		.buildSets();
+}
+
+void Renderer3D::createCommandBuffers()
+{
+	m_commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = m_commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = (uint32_t)m_commandBuffers.size();
+	if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS)
+		throw std::runtime_error("VK: failed to create command buffers!");
+}
+
+void Renderer3D::createSyncObjects()
+{
+	m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+	VkSemaphoreCreateInfo semaphoreInfo{};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkFenceCreateInfo fenceInfo{};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS
+			|| vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS
+			|| vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+			throw std::runtime_error("VK: failed to create sync objects!");
+	}
+}
+
+void Renderer3D::recreateSwapChain()
+{
+	// Handle window minimization by doing nothing in that time
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
+	while (width == 0 || height == 0)
+	{
+		glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
+		glfwWaitEvents();
+	}
+
+	// This implementation requires rendering to finish completely
+	vkDeviceWaitIdle(m_device);
+
+	cleanupSwapChain();
+
+	createSwapChain();
+	createImageViews();
+	createDepthRessources();
+	createFramebuffers();
+}
+
+void Renderer3D::cleanupSwapChain()
+{
+	for (size_t i = 0; i < m_depthImages.size(); i++)
+	{
+		vkDestroyImageView(m_device, m_depthImageViews[i], nullptr);
+		vkDestroyImage(m_device, m_depthImages[i], nullptr);
+		vkFreeMemory(m_device, m_depthImageMemories[i], nullptr);
+	}
+	for (size_t i = 0; i < m_swapChainFramebuffers.size(); i++)
+	{
+		vkDestroyFramebuffer(m_device, m_swapChainFramebuffers[i], nullptr);
+	}
+	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+	{
+		vkDestroyImageView(m_device, m_swapChainImageViews[i], nullptr);
+	}
+	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+}
+
+void Renderer3D::cleanupSceneRessources()
+{
+	vkDestroySampler(m_device, m_textureSamplerNearest, nullptr);
+
+	// Cleanup static tile ressources
+	vkDestroyImageView(m_device, m_sceneRessources.staticTileTextureImageView, nullptr);
+	vkDestroyImage(m_device, m_sceneRessources.staticTileTextureImage, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileTextureImageMemory, nullptr);
+
+	vkDestroyBuffer(m_device, m_sceneRessources.staticTileVertexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileVertexBufferMemory, nullptr);
+	vkDestroyBuffer(m_device, m_sceneRessources.staticTileIndexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.staticTileIndexBufferMemory, nullptr);
+
+	// Cleanup player ressources
+	vkDestroyImageView(m_device, m_sceneRessources.playerTextureImageView, nullptr);
+	vkDestroyImage(m_device, m_sceneRessources.playerTextureImage, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.playerTextureImageMemory, nullptr);
+
+	vkDestroyBuffer(m_device, m_sceneRessources.playerVertexBuffer, nullptr);
+	vkFreeMemory(m_device, m_sceneRessources.playerVertexBufferMemory, nullptr);
+	
+	for (size_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
+	{
+		vkDestroyBuffer(m_device, m_sceneRessources.playerIndexBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemories[i], nullptr);
+	}
+
+	m_descriptorManager.cleanup();
+	
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyBuffer(m_device, m_sceneRessources.globalUniformBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], nullptr);
+	}
+
+	vkDestroyPipeline(m_device, m_staticPipelineRes.graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_staticPipelineRes.pipelineLayout, nullptr);
+	vkDestroyPipeline(m_device, m_actorPipelineRes.graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_actorPipelineRes.pipelineLayout, nullptr);
+
+}
+
+//
+// Helper Functions
+//
+
+std::vector<char> Renderer3D::readShaderFromFile(const std::string& filename)
+{
+	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+	if (!file.is_open())
+		throw std::runtime_error("Utility: failed to read file" + filename);
+	size_t fileSize = (size_t)file.tellg();
+	std::vector<char> buffer(fileSize);
+	file.seekg(0);
+	file.read(buffer.data(), fileSize);
+	file.close();
+
+	return buffer;
+}
+
+VkShaderModule Renderer3D::createShaderModule(const std::vector<char>& code)
+{
+	VkShaderModuleCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = code.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+		throw std::runtime_error("Vulkan: failed to create shader module");
+	return shaderModule;
+}
+
+void Renderer3D::createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
+	const std::vector<VkDescriptorSetLayout>& i_descriptorSetLayouts, VkPushConstantRange* i_pushConstantRange, 
+	GraphicsPipelineRessources& pipelineRessources)
+{
+	auto vertShaderCode = readShaderFromFile(i_vertShaderFilename);
+	auto fragShaderCode = readShaderFromFile(i_fragShaderFilename);
 #ifdef _DEBUG
-	std::cout << "Size of vert shader: " << vertShaderCode.size() << " bytes"
-		<< "\nSize of frag shader: " << fragShaderCode.size() << " bytes" << std::endl;
+	std::cout << "Size of static tile vert shader: " << vertShaderCode.size() << " bytes"
+		<< "\nSize of static tile frag shader: " << fragShaderCode.size() << " bytes" << std::endl;
 #endif
 
 	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -668,15 +1063,22 @@ void Renderer3D::createGraphicsPipeline()
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-	// specify push constants here for passing dynamic values into shaders later
+	pipelineLayoutInfo.setLayoutCount = (uint32_t)i_descriptorSetLayouts.size();
+	pipelineLayoutInfo.pSetLayouts = i_descriptorSetLayouts.data();
+	if (i_pushConstantRange)
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = i_pushConstantRange;
+	}
+	else
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 0;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
+	}
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &pipelineRessources.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create pipeline layout!");
-
+	
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.stageCount = 2;
@@ -689,378 +1091,17 @@ void Renderer3D::createGraphicsPipeline()
 	pipelineInfo.pDepthStencilState = &depthStencil; // Optional
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = m_pipelineLayout;
+	pipelineInfo.layout = pipelineRessources.pipelineLayout;
 	pipelineInfo.renderPass = m_renderPass;
 	pipelineInfo.subpass = 0;
 	// The last two are used for when an already existing pipeline is used for the creation of a new one
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional 
 	pipelineInfo.basePipelineIndex = -1; // Optional
-	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipelineRessources.graphicsPipeline) != VK_SUCCESS)
 		throw std::runtime_error("VK: failed to create graphics pipeline");
 
 	vkDestroyShaderModule(m_device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, vertShaderModule, nullptr);
-
-}
-
-void Renderer3D::createFramebuffers()
-{
-	m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
-	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
-	{
-		std::array<VkImageView, 2> attachments = { m_swapChainImageViews[i], m_depthImageViews[i] };
-
-		VkFramebufferCreateInfo framebufferInfo{};
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = m_renderPass;
-		framebufferInfo.attachmentCount = (uint32_t)attachments.size();
-		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = m_swapChainExtent.width;
-		framebufferInfo.height = m_swapChainExtent.height;
-		framebufferInfo.layers = 1;
-
-		if (vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS)
-			throw std::runtime_error("VK: failed to create framebuffer!");
-	}
-}
-
-void Renderer3D::createCommandPool()
-{
-	QueueFamilyIndices queueFamiliyIndices = findQueueFamilies(m_physicalDevice);
-	VkCommandPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	poolInfo.queueFamilyIndex = queueFamiliyIndices.graphicsFamily.value();
-	if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool))
-		throw std::runtime_error("VK: failed to create command pool!");
-}
-
-void Renderer3D::createDepthRessources()
-{
-	VkFormat depthFormat = findDepthFormat();
-	m_depthImages.resize(MAX_FRAMES_IN_FLIGHT);
-	m_depthImageMemories.resize(MAX_FRAMES_IN_FLIGHT);
-	m_depthImageViews.resize(MAX_FRAMES_IN_FLIGHT);
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		createImage(m_swapChainExtent.width, m_swapChainExtent.height,
-			depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_depthImages[i], m_depthImageMemories[i]);
-		m_depthImageViews[i] = createImageView(m_depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-		transitionImageLayout(m_depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-	}
-}
-
-void Renderer3D::createTextures()
-{
-	std::string textureFile = ASSET_PATH "Sprite Floor Tiles.png";
-	createTextureImage(textureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
-		m_sceneRessources.staticTileTextureImageMemory);
-	m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
-		VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-}
-
-void Renderer3D::createTextureSampler()
-{
-	VkSamplerCreateInfo samplerInfo{};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_NEAREST;
-	samplerInfo.minFilter = VK_FILTER_NEAREST;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.anisotropyEnable = VK_TRUE;
-
-	VkPhysicalDeviceProperties properties{};
-	vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
-	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	samplerInfo.mipLodBias = 0.0f;
-	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = 0.0f;
-	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSamplerNearest) != VK_SUCCESS)
-		throw std::runtime_error("VUlkan: failed to create texture sampler!");
-}
-
-void Renderer3D::createVertexAndIndexBuffers()
-{
-	// Static tile vertex buffer creation
-	for (size_t i = 0; i < m_activeScene->m_cellGrid.size(); i++)
-	{
-		const Cell& cell = m_activeScene->m_cellGrid[i];
-		for (size_t j = 0; j < cell.m_staticTiles.size(); j++)
-		{
-			const Tile& staticTile = cell.m_staticTiles[j];
-			auto spriteTexCoords = queryStaticTileTextureCoords(staticTile.m_spriteIndex, staticTile.m_rotation);
-
-			StaticTileVertex vertexBottomLeft;
-			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z;
-			vertexBottomLeft.texCoord = spriteTexCoords[0];
-			
-			StaticTileVertex vertexBottomRight;
-			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z;
-			vertexBottomRight.texCoord = spriteTexCoords[1];
-
-			StaticTileVertex vertexTopRight;
-			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopRight.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexTopRight.worldPos.z = staticTile.m_gridLocation.z;
-			vertexTopRight.texCoord = spriteTexCoords[2];
-
-			StaticTileVertex vertexTopLeft;
-			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopLeft.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexTopLeft.worldPos.z = staticTile.m_gridLocation.z;
-			vertexTopLeft.texCoord = spriteTexCoords[3];
-
-			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
-			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
-			m_sceneRessources.staticTileVertices.push_back(vertexBottomRight);
-			m_sceneRessources.staticTileVertices.push_back(vertexTopRight);
-			m_sceneRessources.staticTileVertices.push_back(vertexTopLeft);
-			m_sceneRessources.staticTileIndices.insert(m_sceneRessources.staticTileIndices.end(),
-				{
-				(uint16_t)(numVerticesBefore + 0),
-				(uint16_t)(numVerticesBefore + 1),
-				(uint16_t)(numVerticesBefore + 2),
-				(uint16_t)(numVerticesBefore + 2),
-				(uint16_t)(numVerticesBefore + 3),
-				(uint16_t)(numVerticesBefore + 0)
-				}
-			);
-		}
-	}
-
-	std::vector<StaticTileVertex> exampleVertices = {
-		/* BottomLeft  */{{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.1f, 0.1f}},
-		/* BottomRight */{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.2f, 0.1f}},
-		/* TopRight    */{{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.2f, 0.0f}},
-		/* TopLeft     */{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.1f, 0.0f}}
-	};
-	std::vector<uint16_t> exampleIndices = { 0, 1, 2, 2, 3, 0 };
-	//m_sceneRessources.staticTileVertices = exampleVertices;
-	//m_sceneRessources.staticTileIndices = exampleIndices;
-
-	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
-	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
-		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
-	bufferSize = sizeof(uint16_t) * m_sceneRessources.staticTileIndices.size();
-	createIndexBuffer(bufferSize, m_sceneRessources.staticTileIndices.data(),
-		m_sceneRessources.staticTileIndexBuffer, m_sceneRessources.staticTileIndexBufferMemory);
-}
-
-void Renderer3D::createUniformBuffers()
-{
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-	m_uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-	m_uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-	m_uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			m_uniformBuffers[i], m_uniformBuffersMemory[i]);
-		// Persistent Mapping
-		vkMapMemory(m_device, m_uniformBuffersMemory[i], 0, bufferSize, 0, &m_uniformBuffersMapped[i]);
-
-	}
-}
-
-void Renderer3D::createDescriptorPool()
-{
-	std::array<VkDescriptorPoolSize, 2> poolSizes{};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-
-	VkDescriptorPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
-	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor pool!");
-}
-
-void Renderer3D::createDescriptorSets()
-{
-	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
-	VkDescriptorSetAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = m_descriptorPool;
-	allocInfo.descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT;
-	allocInfo.pSetLayouts = layouts.data();
-
-	m_descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(m_device, &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create descriptor sets!");
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_uniformBuffers[i];
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UniformBufferObject);
-
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_sceneRessources.staticTileTextureImageView;
-		imageInfo.sampler = m_textureSamplerNearest;
-
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[0].dstSet = m_descriptorSets[i];
-		descriptorWrites[0].dstBinding = 0;
-		descriptorWrites[0].dstArrayElement = 0;
-		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[0].descriptorCount = 1;
-		descriptorWrites[0].pBufferInfo = &bufferInfo;
-		descriptorWrites[0].pImageInfo = nullptr; // Optional
-		descriptorWrites[0].pTexelBufferView = nullptr; // Optional
-
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = m_descriptorSets[i];
-		descriptorWrites[1].dstBinding = 1;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &imageInfo;
-
-		vkUpdateDescriptorSets(m_device, (uint32_t)descriptorWrites.size(),
-			descriptorWrites.data(), 0, nullptr);
-	}
-}
-
-void Renderer3D::createCommandBuffers()
-{
-	m_commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = m_commandPool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = (uint32_t)m_commandBuffers.size();
-	if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS)
-		throw std::runtime_error("VK: failed to create command buffers!");
-}
-
-void Renderer3D::createSyncObjects()
-{
-	m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-	VkSemaphoreCreateInfo semaphoreInfo{};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	VkFenceCreateInfo fenceInfo{};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS
-			|| vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS
-			|| vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
-			throw std::runtime_error("VK: failed to create sync objects!");
-	}
-}
-
-void Renderer3D::recreateSwapChain()
-{
-	// Handle window minimization by doing nothing in that time
-	int width = 0, height = 0;
-	glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
-	while (width == 0 || height == 0)
-	{
-		glfwGetFramebufferSize(Game::getInstance().getWindow(), &width, &height);
-		glfwWaitEvents();
-	}
-
-	// This implementation requires rendering to finish completely
-	vkDeviceWaitIdle(m_device);
-
-	cleanupSwapChain();
-
-	createSwapChain();
-	createImageViews();
-	createDepthRessources();
-	createFramebuffers();
-}
-
-void Renderer3D::cleanupSwapChain()
-{
-	for (size_t i = 0; i < m_depthImages.size(); i++)
-	{
-		vkDestroyImageView(m_device, m_depthImageViews[i], nullptr);
-		vkDestroyImage(m_device, m_depthImages[i], nullptr);
-		vkFreeMemory(m_device, m_depthImageMemories[i], nullptr);
-	}
-	for (size_t i = 0; i < m_swapChainFramebuffers.size(); i++)
-	{
-		vkDestroyFramebuffer(m_device, m_swapChainFramebuffers[i], nullptr);
-	}
-	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
-	{
-		vkDestroyImageView(m_device, m_swapChainImageViews[i], nullptr);
-	}
-	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-}
-
-void Renderer3D::cleanupSceneRessources()
-{
-	vkDestroySampler(m_device, m_textureSamplerNearest, nullptr);
-
-	// Cleanup static tile ressources
-	vkDestroyImageView(m_device, m_sceneRessources.staticTileTextureImageView, nullptr);
-	vkDestroyImage(m_device, m_sceneRessources.staticTileTextureImage, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileTextureImageMemory, nullptr);
-
-	vkDestroyBuffer(m_device, m_sceneRessources.staticTileVertexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileVertexBufferMemory, nullptr);
-
-	vkDestroyBuffer(m_device, m_sceneRessources.staticTileIndexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileIndexBufferMemory, nullptr);
-}
-
-//
-// Helper Functions
-//
-
-std::vector<char> Renderer3D::readShaderFromFile(const std::string& filename)
-{
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-	if (!file.is_open())
-		throw std::runtime_error("Utility: failed to read file" + filename);
-	size_t fileSize = (size_t)file.tellg();
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-	file.close();
-
-	return buffer;
-}
-
-VkShaderModule Renderer3D::createShaderModule(const std::vector<char>& code)
-{
-	VkShaderModuleCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-		throw std::runtime_error("Vulkan: failed to create shader module");
-	return shaderModule;
 }
 
 void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
@@ -1086,8 +1127,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	renderPassInfo.pClearValues = clearValues.data();
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-
+	
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
@@ -1102,15 +1142,49 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	scissor.extent = m_swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	/*
+	Draw static objects with the static object pipeline
+	*/
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.graphicsPipeline);
+		VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		// Bind descriptor sets (Global is set zero, object related stuff is set one)
+		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
+			{ m_descriptorManager.getDescriptorSet("global", m_currentFrame),
+			m_descriptorManager.getDescriptorSet("staticTile", m_currentFrame) };
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.pipelineLayout,
+			0, 2, descriptorSetsToBind.data(), 0, nullptr);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
+	}
 
-	VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
-		0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
+	/*
+	Draw actors with the actors with the actor object pipeline
+	player, enemies and actor objects are actors
+	*/
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.graphicsPipeline);
+		ModelMatrixPushConstant playerPushConstants{};
+		playerPushConstants.translate = m_activeScene->m_player.m_position;
+		playerPushConstants.rotate = static_cast<glm::float32_t>(m_activeScene->m_player.m_rotationAngle);
+		vkCmdPushConstants(commandBuffer, m_actorPipelineRes.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+			sizeof(ModelMatrixPushConstant), &playerPushConstants);
+		VkBuffer vertexBuffers[] = { m_sceneRessources.playerVertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffers[m_activeScene->m_player.m_spriteIndex],
+			0, VK_INDEX_TYPE_UINT16);
+		// Bind descriptor sets (Global is set zero, object related stuff is set one)
+		// However if another actor is drawn only object related set has to be bound again.
+		std::array<VkDescriptorSet, 2> descriptorSetsToBind = 
+		{ m_descriptorManager.getDescriptorSet("global", m_currentFrame),
+			m_descriptorManager.getDescriptorSet("player", m_currentFrame) };
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
+			0, 2, descriptorSetsToBind.data(), 0, nullptr);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)(m_sceneRessources.playerIndices.size() / MAX_NUMBER_OF_PLAYER_SPRITES), 1, 0, 0, 0);
+	}
 
 	vkCmdEndRenderPass(commandBuffer);
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -1554,19 +1628,11 @@ void Renderer3D::drawFrame()
 
 void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 {
-	// Not optoimal for the purpose of small buffers -> use push constants instead
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>
-		(currentTime - startTime).count();
-
-	UniformBufferObject ubo{};
+	UniformBufferCameraObject ubo{};
 	// Rotation of the model around z-axis
 	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.model = glm::mat4(1.0f); // Identity matrix
 	ubo.view = m_activeScene->m_activeCamera.getView();
 	ubo.proj = m_activeScene->m_activeCamera.getProjection();
 	ubo.proj[1][1] *= -1;
-	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+	memcpy(m_sceneRessources.globalUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
