@@ -145,7 +145,7 @@ private:
 	std::vector<char> readShaderFromFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	void createGraphicsPipeline(const std::string& i_vertShaderFilename, const std::string& i_fragShaderFilename,
-		const VkDescriptorSetLayout& i_descriptorSetLayout, VkPushConstantRange* i_pushConstantRange, 
+		const std::vector<VkDescriptorSetLayout>& i_descriptorSetLayouts, VkPushConstantRange* i_pushConstantRange,
 		GraphicsPipelineRessources& pipelineRessources);
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	VkCommandBuffer beginSingleTimeCommands();

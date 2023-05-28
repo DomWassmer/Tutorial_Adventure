@@ -22,7 +22,7 @@ void Game::init()
 
 	m_lastFrame = std::chrono::high_resolution_clock::now();
 
-	m_renderer3D = std::make_unique<Renderer3D>(Renderer3D());
+	m_renderer3D = std::make_unique<Renderer3D>();
 	m_renderer3D->init();
 
 	m_activeScene = Scene::generateScene(Scene::SceneType::Level1);

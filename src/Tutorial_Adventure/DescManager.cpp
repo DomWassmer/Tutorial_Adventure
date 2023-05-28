@@ -34,7 +34,7 @@ void DescManager::buildLayout(const std::string& name)
 {
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = m_layoutBindingBuffer.size();
+	layoutInfo.bindingCount = (uint32_t)m_layoutBindingBuffer.size();
 	layoutInfo.pBindings = m_layoutBindingBuffer.data();
  
 	/* What happens if already in the map */
@@ -102,6 +102,8 @@ DescManager& DescManager::addPerFrameBufferInfo(const std::vector<VkBuffer>& buf
 		bufferInfo.range = range;
 		m_setCreationPerFrameBufferInfoBuffer.push_back(bufferInfo);
 	}
+
+	return *this;
 }
 
 DescManager& DescManager::addImageInfo(VkImageView imageView, VkImageLayout imageLayout, VkSampler imageSampler)
@@ -113,6 +115,7 @@ DescManager& DescManager::addImageInfo(VkImageView imageView, VkImageLayout imag
 	imageInfo.imageView = imageView;
 	imageInfo.imageLayout = imageLayout;
 	imageInfo.sampler = imageSampler;
+	m_setCreationImageInfoBuffer.push_back(imageInfo);
 
 	return *this;
 }
@@ -125,8 +128,60 @@ void DescManager::buildSets()
 
 	for (size_t i = 0; i < m_renderer->MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		for(size_t j = )
+		std::vector<VkWriteDescriptorSet> descriptorWrites;
+		
+		for (size_t j = 0; j < m_setCreationBufferInfoBuffer.size(); j++)
+		{
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = m_setCreationResBuffer->sets[i];
+			// Add how binding can be handled
+			descriptorWrite.dstBinding = 0; // TODO
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &m_setCreationBufferInfoBuffer[j];
+
+			descriptorWrites.push_back(descriptorWrite);
+		}
+
+		for (size_t j = 0; j < m_setCreationImageInfoBuffer.size(); j++)
+		{
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			auto tmp = m_setCreationResBuffer->sets[i];
+			descriptorWrite.dstSet = m_setCreationResBuffer->sets[i];
+			// Add how binding can be handled
+			descriptorWrite.dstBinding = 0; // TODO
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &m_setCreationImageInfoBuffer[j];
+
+			descriptorWrites.push_back(descriptorWrite);
+		}
+
+		for (size_t j = 0; j < (size_t)(m_setCreationPerFrameBufferInfoBuffer.size() 
+			/ m_renderer->MAX_FRAMES_IN_FLIGHT); j++)
+		{
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = m_setCreationResBuffer->sets[i];
+			// Add how binding can be handled
+			descriptorWrite.dstBinding = 0; // TODO
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &m_setCreationPerFrameBufferInfoBuffer[j * m_renderer->MAX_FRAMES_IN_FLIGHT + i];
+
+			descriptorWrites.push_back(descriptorWrite);
+		}
+
+		vkUpdateDescriptorSets(m_renderer->m_device, (uint32_t)descriptorWrites.size(),
+			descriptorWrites.data(), 0, nullptr);
 	}
+
+	m_setCreationResBuffer = nullptr;
 }
 
 VkDescriptorSetLayout DescManager::getLayout(const std::string& name)
@@ -135,12 +190,16 @@ VkDescriptorSetLayout DescManager::getLayout(const std::string& name)
 	return m_descriptorRessources.at(name).setLayout; // TODO
 }
 
+VkDescriptorSet DescManager::getDescriptorSet(const std::string& name, int frame)
+{
+	return m_descriptorRessources.at(name).sets[frame];
+}
+
 void DescManager::createDescriptorPool()
 {
 	/* This implementation feels bad. I think it is better to change all the infrastructure from maps to vectors and save the corresponding indices in the scene ressources of renderer. */
-	uint32_t poolSizeCount = m_descriptorTypeMap.size();
-	std::vector<VkDescriptorPoolSize> poolSizes;
-	poolSizes.resize(poolSizeCount);
+	uint32_t poolSizeCount = (uint32_t)m_descriptorTypeMap.size();
+	std::vector<VkDescriptorPoolSize> poolSizes{};
 	for (auto it = m_descriptorTypeMap.begin(); it != m_descriptorTypeMap.end(); it++)
 	{
 		poolSizes.push_back(it->second);
@@ -153,4 +212,13 @@ void DescManager::createDescriptorPool()
 	poolInfo.maxSets = (uint32_t)(m_descriptorRessources.size() * m_renderer->MAX_FRAMES_IN_FLIGHT);
 	if (vkCreateDescriptorPool(m_renderer->m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Vulkan: failed to create descriptor pool!");
+}
+
+void DescManager::cleanup()
+{
+	vkDestroyDescriptorPool(m_renderer->m_device, m_descriptorPool, nullptr);
+	for (auto it = m_descriptorRessources.begin(); it != m_descriptorRessources.end(); it++)
+	{
+		vkDestroyDescriptorSetLayout(m_renderer->m_device, it->second.setLayout, nullptr);
+	}
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -28,6 +30,7 @@ public:
 	void buildSets();
 
 	VkDescriptorSetLayout getLayout(const std::string& name);
+	VkDescriptorSet getDescriptorSet(const std::string& name, int frame);
 
 	void createDescriptorPool();
 	void cleanup();
