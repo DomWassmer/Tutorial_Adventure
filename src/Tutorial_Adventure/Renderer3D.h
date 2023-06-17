@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <vector>
+#include <set>
 #include <string>
 #include <array>
 #include <chrono>
@@ -16,6 +17,7 @@
 #include <vulkan/vulkan.h>
 
 #include "DescManager.h"
+#include "SceneRessourceManager.h"
 #include "Scene.h"
 #include "Vertex.h"
 
@@ -61,6 +63,46 @@ public:
 		VkPipeline graphicsPipeline;
 	};
 
+	struct Texture {
+		VkImage img;
+		VkDeviceMemory memory;
+		VkImageView imgView;
+	};
+
+	struct Buffer {
+		VkBuffer buffer;
+		VkDeviceMemory memory;
+	};
+
+	struct SceneRessources {
+		// Global Ressources (camera, ambient light)
+		std::vector<VkBuffer> globalUniformBuffers;
+		std::vector<VkDeviceMemory> globalUniformBuffersMemory;
+		std::vector<void*> globalUniformBuffersMapped;
+
+		// StaticTileRessources
+		VkImage staticTileTextureImage;
+		VkDeviceMemory staticTileTextureImageMemory;
+		VkImageView staticTileTextureImageView;
+		VkBuffer staticTileVertexBuffer;
+		VkDeviceMemory staticTileVertexBufferMemory;
+		VkBuffer staticTileIndexBuffer;
+		VkDeviceMemory staticTileIndexBufferMemory;
+		std::vector<StaticTileVertex> staticTileVertices;
+		std::vector<uint16_t> staticTileIndices;
+
+		// Player Ressources
+		VkImage playerTextureImage;
+		VkDeviceMemory playerTextureImageMemory;
+		VkImageView playerTextureImageView;
+		VkBuffer playerVertexBuffer;
+		VkDeviceMemory playerVertexBufferMemory;
+		std::vector<VkBuffer> playerIndexBuffers;
+		std::vector<VkDeviceMemory> playerIndexBufferMemories;
+		std::vector<Vertex> playerVertices;
+		std::vector<uint16_t> playerIndices;
+	};
+
 public:
 	bool m_framebufferResized = false;
 	std::shared_ptr<Scene> m_activeScene;
@@ -69,13 +111,22 @@ public:
 	int MAX_FRAMES_IN_FLIGHT = 2;
 	uint32_t m_currentFrame = 0;
 public:
+	// Maybe make Singleton pattern out of this. Not neccessary atm
 	Renderer3D();
+
+	Renderer3D(const Renderer3D&) = delete;
+	Renderer3D(const Renderer3D&&) = delete;
+	Renderer3D& operator=(const Renderer3D&) = delete;
+	Renderer3D&& operator=(const Renderer3D&&) = delete;
 
 	void init();
 	void generateSceneRessources();
 	void render();
 	void cleanup();
 	const VkInstance& GetInstance() { return m_instance; }
+
+	unsigned int requestID(std::string name);
+	void cmdLoadTexture(unsigned int ID, std::string filename);
 
 private:
 	// initVulkan functions
@@ -139,7 +190,7 @@ private:
 	bool hasStencilComponent(VkFormat format);
 	void createTextureImage(const char* textureFile, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
 	std::array<glm::vec2, 4> queryStaticTileTextureCoords(int index, int rotation);
-
+	
 	// Main Loop
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
@@ -173,8 +224,18 @@ private:
 	std::vector<VkDeviceMemory> m_depthImageMemories;
 	std::vector<VkImageView> m_depthImageViews;
 
-	SceneRessources m_sceneRessources;
 	DescManager m_descriptorManager;
+
+	/* Scene Ressources */
+	std::unordered_map<unsigned int, Texture> m_textures;
+	std::unordered_map<unsigned int, std::string> m_texturesToLoad;
+	std::unordered_map<unsigned int, Buffer> m_vertexBuffers;
+	std::unordered_map<unsigned int, std::vector<Buffer>> m_indexBuffers;
+	std::unordered_map<unsigned int, std::vector<Vertex>> m_vertices;
+	std::unordered_map<unsigned int, std::vector<uint16_t>> m_indices;
+	std::unordered_map<unsigned int, std::string> m_givenIDs;
+	unsigned int m_IDcounter = 0;
+
 
 	//Main Loop
 	std::vector<VkSemaphore> m_imageAvailableSemaphores; // Semaphores handle order of operations on the gpu

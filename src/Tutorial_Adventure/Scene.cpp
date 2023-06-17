@@ -1,5 +1,7 @@
 #include "Scene.h"
 
+#include "Game.h"
+
 #include <iostream>
 
 std::shared_ptr<Scene> Scene::generateScene(SceneType sceneType)
@@ -26,7 +28,11 @@ void Scene::generateScene_MainMenu()
 
 void Scene::generateScene_Level1() {
 	{
+		Game& gameInst = Game::getInstance();
+
 		// For now only draw first sprite of character
+		m_player.rendererID = gameInst.getRenderer3D()->requestID("Player");
+		gameInst.getRenderer3D()->cmdLoadTexture(m_player.rendererID, "Walpurgia.png");
 		m_player.m_position = glm::vec3(8.0f, 8.0f, 0.0f);
 		m_player.m_spriteIndex = 0;
 
@@ -36,6 +42,9 @@ void Scene::generateScene_Level1() {
 		Cell cell_0;
 		cell_0.cellPosition[0] = 0;
 		cell_0.cellPosition[1] = 0;
+
+		unsigned int tileRendererID = gameInst.getRenderer3D()->requestID("Floor Tiles");
+		gameInst.getRenderer3D()->cmdLoadTexture(tileRendererID, "Sprite Floor Tiles.png");
 
 		cell_0.m_staticTiles.resize(CELL_SIZE * CELL_SIZE);
 

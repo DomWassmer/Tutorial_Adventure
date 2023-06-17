@@ -25,6 +25,8 @@ const int MAX_NUMBER_OF_PLAYER_SPRITES = 3;
 
 #define VERBOSE
 
+
+
 // Can't be a member function because compiler changes member function to non-member function func(this, args)
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
@@ -170,6 +172,19 @@ void Renderer3D::createInstance()
 	{
 		throw std::runtime_error("Vulkan: failed to create instance!");
 	}
+}
+
+unsigned int Renderer3D::requestID(std::string name)
+{
+	auto& element = m_givenIDs[m_IDcounter];
+	element = name;
+	m_IDcounter++;
+}
+
+void Renderer3D::cmdLoadTexture(unsigned int ID, std::string filename) 
+{
+	auto& element = m_texturesToLoad[ID];
+	element = filename;
 }
 
 void Renderer3D::createSurface()
@@ -610,20 +625,12 @@ void Renderer3D::createDepthRessources()
 
 void Renderer3D::createTextures()
 {
+	for (auto it = m_texturesToLoad.begin(); it != m_texturesToLoad.end(); it++)
 	{
-		std::string FloorTextureFile = ASSET_PATH "Sprite Floor Tiles.png";
-		createTextureImage(FloorTextureFile.c_str(), m_sceneRessources.staticTileTextureImage, 
-			m_sceneRessources.staticTileTextureImageMemory);
-		m_sceneRessources.staticTileTextureImageView = createImageView(m_sceneRessources.staticTileTextureImage, 
-			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-	}
-
-	{
-		std::string PlayerTextureFile = ASSET_PATH "Walpurgia.png";
-		createTextureImage(PlayerTextureFile.c_str(), m_sceneRessources.playerTextureImage,
-			m_sceneRessources.playerTextureImageMemory);
-		m_sceneRessources.playerTextureImageView = createImageView(m_sceneRessources.playerTextureImage,
-			VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+		std::string filepath = ASSET_PATH + it->second;
+		Texture& texture = m_textures[it->first];
+		createTextureImage(filepath.c_str(), texture.img, texture.memory);
+		texture.imgView = createImageView(texture.img, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 }
 

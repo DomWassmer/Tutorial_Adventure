@@ -15,7 +15,9 @@ public:
 	DescManager(Renderer3D* renderer);
 
 	DescManager(const DescManager&) = delete;
+	DescManager(const DescManager&&) = delete;
 	DescManager& operator=(const DescManager&) = delete;
+	DescManager& operator=(const DescManager&&) = delete;
 
 	/* Builder functions for creating descriptor set layouts */
 	DescManager& startLayout();
