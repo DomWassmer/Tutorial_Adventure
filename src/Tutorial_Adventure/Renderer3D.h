@@ -17,9 +17,9 @@
 #include <vulkan/vulkan.h>
 
 #include "DescManager.h"
-#include "SceneRessourceManager.h"
 #include "Scene.h"
 #include "Vertex.h"
+#include "Model.h"
 
 // The static tile sprite sheet is expected top be 160 by 160 pixels containg 10 sprites per row and column
 #define STATIC_TILE_SPRITE_SIZE 16
@@ -229,10 +229,7 @@ private:
 	/* Scene Ressources */
 	std::unordered_map<unsigned int, Texture> m_textures;
 	std::unordered_map<unsigned int, std::string> m_texturesToLoad;
-	std::unordered_map<unsigned int, Buffer> m_vertexBuffers;
-	std::unordered_map<unsigned int, std::vector<Buffer>> m_indexBuffers;
-	std::unordered_map<unsigned int, std::vector<Vertex>> m_vertices;
-	std::unordered_map<unsigned int, std::vector<uint16_t>> m_indices;
+	std::unordered_map<unsigned int, Model3D> m_models;
 	std::unordered_map<unsigned int, std::string> m_givenIDs;
 	unsigned int m_IDcounter = 0;
 
