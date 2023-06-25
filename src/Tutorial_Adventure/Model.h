@@ -23,16 +23,18 @@ public:
 	void bind(VkCommandBuffer commandBuffer);
 	void draw(VkCommandBuffer commandBuffer);
 private:
-	void createVertexBuffers(const std::vector<Vertex>& vertices);
-	void createIndexBuffers(const std::vector<Vertex>& indices);
+	// maybe create abstractions later
+	// void createVertexBuffers(const std::vector<Vertex>& vertices);
+	// void createIndexBuffers(const std::vector<Vertex>& indices);
 
-	Renderer3D& renderer;
+	Renderer3D& r_renderer;
 
 	VkBuffer m_vertexBuffer;
 	VkDeviceMemory m_vertexBufferMemory;
 	VkBuffer m_indexBuffer;
 	VkDeviceMemory m_indexBufferMemory;
 	uint32_t m_vertexCount;
+	uint32_t m_indexCount;
 
 };
 

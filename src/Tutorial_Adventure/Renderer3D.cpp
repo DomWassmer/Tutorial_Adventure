@@ -1501,7 +1501,7 @@ void Renderer3D::createTextureImage(const char* textureFile, VkImage& textureIma
 	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
 }
 
-void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer, 
+void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, const void* verticesData, VkBuffer& vertexBuffer, 
 	VkDeviceMemory& vertexBufferMemory)
 {
 	// Important note: vkAllocateMemory to allocate memory in the GPU should not be used on individual buffers
@@ -1526,7 +1526,7 @@ void Renderer3D::createVertexBuffer(VkDeviceSize bufferSize, void* verticesData,
 	vkFreeMemory(m_device, stagingBufferMemory, nullptr);
 }
 
-void Renderer3D::createIndexBuffer(VkDeviceSize bufferSize, void* indexData, VkBuffer& indexBuffer, 
+void Renderer3D::createIndexBuffer(VkDeviceSize bufferSize, const void* indexData, VkBuffer& indexBuffer, 
 	VkDeviceMemory& indexBufferMemory)
 {
 	VkBuffer stagingBuffer;

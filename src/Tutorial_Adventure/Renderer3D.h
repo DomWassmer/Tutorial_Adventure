@@ -125,6 +125,11 @@ public:
 	void cleanup();
 	const VkInstance& GetInstance() { return m_instance; }
 
+	// Helper Functions
+	void createVertexBuffer(VkDeviceSize bufferSize, const void* verticesData, VkBuffer& vertexBuffer,
+		VkDeviceMemory& vertexBufferMemory);
+	void createIndexBuffer(VkDeviceSize bufferSize, const void* indexData, VkBuffer& indexBuffer,
+		VkDeviceMemory& indexBufferMemory);
 	unsigned int requestID(std::string name);
 	void cmdLoadTexture(unsigned int ID, std::string filename);
 
@@ -173,10 +178,6 @@ private:
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-	void createVertexBuffer(VkDeviceSize bufferSize, void* verticesData, VkBuffer& vertexBuffer,
-		VkDeviceMemory& vertexBufferMemory);
-	void createIndexBuffer(VkDeviceSize bufferSize, void* indexData, VkBuffer& indexBuffer,
-		VkDeviceMemory& indexBufferMemory);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -232,7 +233,6 @@ private:
 	std::unordered_map<unsigned int, Model3D> m_models;
 	std::unordered_map<unsigned int, std::string> m_givenIDs;
 	unsigned int m_IDcounter = 0;
-
 
 	//Main Loop
 	std::vector<VkSemaphore> m_imageAvailableSemaphores; // Semaphores handle order of operations on the gpu
