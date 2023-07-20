@@ -18,6 +18,8 @@ struct Cell {
 	int cellPosition[2];
 	std::vector<Character> m_enemies;
 	std::vector<Tile> m_staticTiles;
+	unsigned int m_staticTileModelRendererID = -1;
+	unsigned int m_staticTileTextureRendererID = -1;
 	std::vector<DynamicTile> m_dynamicTiles;
 	std::vector<Object> m_objects;
 	std::vector<DynamicObject> m_dynamicObjects;

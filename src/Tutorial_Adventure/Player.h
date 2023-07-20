@@ -33,7 +33,8 @@ struct PlayerAnimationTimes {
 
 class Player {
 public:
-	unsigned int rendererID = -1;
+	unsigned int m_modelID = -1;
+	unsigned int m_textureID = -1;
 	glm::vec3 m_position{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 m_lastPosition{ 0.0f, 0.0f, 0.0f }; // Needed for deceleration
 	float m_speed = 5.0f; // Tiles per second

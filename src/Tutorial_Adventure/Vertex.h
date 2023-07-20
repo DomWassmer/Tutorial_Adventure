@@ -17,7 +17,7 @@ struct Vertex {
 };
 
 struct StaticTileVertex {
-	glm::vec3 worldPos;
+	glm::vec3 pos;
 	glm::vec2 texCoord;
 
 	static VkVertexInputBindingDescription getBindingDescription();

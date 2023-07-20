@@ -20,6 +20,7 @@
 #include "Scene.h"
 #include "Vertex.h"
 #include "Model.h"
+#include "Texture.h"
 
 // The static tile sprite sheet is expected top be 160 by 160 pixels containg 10 sprites per row and column
 #define STATIC_TILE_SPRITE_SIZE 16
@@ -61,12 +62,6 @@ public:
 	struct GraphicsPipelineRessources {
 		VkPipelineLayout pipelineLayout;
 		VkPipeline graphicsPipeline;
-	};
-
-	struct Texture {
-		VkImage img;
-		VkDeviceMemory memory;
-		VkImageView imgView;
 	};
 
 	struct Buffer {
@@ -228,6 +223,9 @@ private:
 	DescManager m_descriptorManager;
 
 	/* Scene Ressources */
+	std::vector<VkBuffer> m_globalUniformBuffers;
+	std::vector<VkDeviceMemory> m_globalUniformBuffersMemory;
+	std::vector<void*> m_globalUniformBuffersMapped;
 	std::unordered_map<unsigned int, Texture> m_textures;
 	std::unordered_map<unsigned int, std::string> m_texturesToLoad;
 	std::unordered_map<unsigned int, Model3D> m_models;

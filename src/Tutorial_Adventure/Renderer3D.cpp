@@ -174,6 +174,10 @@ void Renderer3D::createInstance()
 	}
 }
 
+/*
+	It is obviously not efficient to also store a name for each ID but since this is a learning project it will help with debugging.
+	If the infrastructure for scene creation and ressource generations is working this will get thrown out again.
+*/ 
 unsigned int Renderer3D::requestID(std::string name)
 {
 	auto& element = m_givenIDs[m_IDcounter];
@@ -665,42 +669,45 @@ void Renderer3D::createVertexAndIndexBuffers()
 	// Static tile vertex buffer creation
 	for (size_t i = 0; i < m_activeScene->m_cellGrid.size(); i++)
 	{
-		const Cell& cell = m_activeScene->m_cellGrid[i];
+		Cell& cell = m_activeScene->m_cellGrid[i];
+		cell.m_staticTileModelRendererID = requestID("Cell static Tile Model");
+		std::vector<Vertex> staticTileVertices;
+		std::vector<uint16_t> staticTileIndices;
 		for (size_t j = 0; j < cell.m_staticTiles.size(); j++)
 		{
 			const Tile& staticTile = cell.m_staticTiles[j];
 			auto spriteTexCoords = queryStaticTileTextureCoords(staticTile.m_spriteIndex, staticTile.m_rotation);
 
-			StaticTileVertex vertexBottomLeft;
-			vertexBottomLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomLeft.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexBottomLeft.worldPos.z = staticTile.m_gridLocation.z;
+			Vertex vertexBottomLeft;
+			vertexBottomLeft.pos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomLeft.pos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomLeft.pos.z = staticTile.m_gridLocation.z;
 			vertexBottomLeft.texCoord = spriteTexCoords[0];
 			
-			StaticTileVertex vertexBottomRight;
-			vertexBottomRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexBottomRight.worldPos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexBottomRight.worldPos.z = staticTile.m_gridLocation.z;
+			Vertex vertexBottomRight;
+			vertexBottomRight.pos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexBottomRight.pos.y = staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexBottomRight.pos.z = staticTile.m_gridLocation.z;
 			vertexBottomRight.texCoord = spriteTexCoords[1];
 
-			StaticTileVertex vertexTopRight;
-			vertexTopRight.worldPos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopRight.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexTopRight.worldPos.z = staticTile.m_gridLocation.z;
+			Vertex vertexTopRight;
+			vertexTopRight.pos.x = 1.0f + staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopRight.pos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopRight.pos.z = staticTile.m_gridLocation.z;
 			vertexTopRight.texCoord = spriteTexCoords[2];
 
-			StaticTileVertex vertexTopLeft;
-			vertexTopLeft.worldPos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
-			vertexTopLeft.worldPos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
-			vertexTopLeft.worldPos.z = staticTile.m_gridLocation.z;
+			Vertex vertexTopLeft;
+			vertexTopLeft.pos.x = staticTile.m_gridLocation.x + (float)cell.cellPosition[0];
+			vertexTopLeft.pos.y = 1.0f + staticTile.m_gridLocation.y + (float)cell.cellPosition[1];
+			vertexTopLeft.pos.z = staticTile.m_gridLocation.z;
 			vertexTopLeft.texCoord = spriteTexCoords[3];
 
-			size_t numVerticesBefore = m_sceneRessources.staticTileVertices.size();
-			m_sceneRessources.staticTileVertices.push_back(vertexBottomLeft);
-			m_sceneRessources.staticTileVertices.push_back(vertexBottomRight);
-			m_sceneRessources.staticTileVertices.push_back(vertexTopRight);
-			m_sceneRessources.staticTileVertices.push_back(vertexTopLeft);
-			m_sceneRessources.staticTileIndices.insert(m_sceneRessources.staticTileIndices.end(),
+			size_t numVerticesBefore = j * 4;
+			staticTileVertices.push_back(vertexBottomLeft);
+			staticTileVertices.push_back(vertexBottomRight);
+			staticTileVertices.push_back(vertexTopRight);
+			staticTileVertices.push_back(vertexTopLeft);
+			staticTileIndices.insert(staticTileIndices.end(),
 				{
 				(uint16_t)(numVerticesBefore + 0),
 				(uint16_t)(numVerticesBefore + 1),
@@ -711,20 +718,14 @@ void Renderer3D::createVertexAndIndexBuffers()
 				}
 			);
 		}
+		//m_models.emplace(std::make_pair(cell.m_staticTileModelRendererID, Model3D(*this, staticTileVertices, staticTileIndices)));
 	}
 
-	VkDeviceSize bufferSize = sizeof(StaticTileVertex) * m_sceneRessources.staticTileVertices.size();
-	createVertexBuffer(bufferSize, m_sceneRessources.staticTileVertices.data(),
-		m_sceneRessources.staticTileVertexBuffer, m_sceneRessources.staticTileVertexBufferMemory);
-	bufferSize = sizeof(uint16_t) * m_sceneRessources.staticTileIndices.size();
-	createIndexBuffer(bufferSize, m_sceneRessources.staticTileIndices.data(),
-		m_sceneRessources.staticTileIndexBuffer, m_sceneRessources.staticTileIndexBufferMemory);
-	
 	// Player buffer creation
 	{
 		const float offset = 8.0 / 16.0f;
 
-		m_sceneRessources.playerVertices = {
+		std::vector<Vertex> playerVertices = {
 			/* BottomLeft  */{{0.0f - offset, 0.0f, 0.0f}, {0.0f, 0.5f}},
 			/* BottomRight */{{2.0f - offset, 0.0f, 0.0f}, {0.25f, 0.5f}},
 			/* TopRight    */{{2.0f - offset, 0.0f, 2.0f}, {0.25f, 0.0f}},
@@ -739,12 +740,17 @@ void Renderer3D::createVertexAndIndexBuffers()
 			{{0.0f - offset, 0.0f, 2.0f}, {0.5f, 0.0f}}
 		};
 		
-		VkDeviceSize bufferSize = sizeof(Vertex) * m_sceneRessources.playerVertices.size();
-		createVertexBuffer(bufferSize, m_sceneRessources.playerVertices.data(),
-			m_sceneRessources.playerVertexBuffer, m_sceneRessources.playerVertexBufferMemory);
+		std::vector<uint16_t> playerIndices = 
+		{ 0, 1, 2, 2, 3, 0,
+		  4, 5, 6, 6, 7, 4,
+		  8, 9, 10, 10, 11, 8
+		};
+
+		m_activeScene->m_player.m_modelID = requestID("Player Model");
+		//m_models.emplace(m_activeScene->m_player.m_modelID, *this, playerVertices, playerIndices);
 
 		//m_sceneRessources.playerIndices.resize(MAX_NUMBER_OF_PLAYER_SPRITES * 6);
-		m_sceneRessources.playerIndexBuffers.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
+		/*m_sceneRessources.playerIndexBuffers.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
 		m_sceneRessources.playerIndexBufferMemories.resize(MAX_NUMBER_OF_PLAYER_SPRITES);
 		for (uint16_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
 		{
@@ -755,7 +761,7 @@ void Renderer3D::createVertexAndIndexBuffers()
 			bufferSize = sizeof(uint16_t) * tmp.size();
 			createIndexBuffer(bufferSize, tmp.data(),
 				m_sceneRessources.playerIndexBuffers[i], m_sceneRessources.playerIndexBufferMemories[i]);
-		}
+		}*/
 	}
 }
 
@@ -764,18 +770,18 @@ void Renderer3D::createUniformBuffers()
 	// Global Uniform Buffers
 	{
 		VkDeviceSize bufferSize = sizeof(UniformBufferCameraObject);
-		m_sceneRessources.globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-		m_sceneRessources.globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-		m_sceneRessources.globalUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+		m_globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+		m_globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+		m_globalUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				m_sceneRessources.globalUniformBuffers[i], m_sceneRessources.globalUniformBuffersMemory[i]);
+				m_globalUniformBuffers[i], m_globalUniformBuffersMemory[i]);
 			// Persistent Mapping
-			vkMapMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], 0, bufferSize, 
-				0, &m_sceneRessources.globalUniformBuffersMapped[i]);
+			vkMapMemory(m_device, m_globalUniformBuffersMemory[i], 0, bufferSize, 
+				0, &m_globalUniformBuffersMapped[i]);
 		}
 	}
 }
@@ -790,19 +796,19 @@ void Renderer3D::createDescriptorSets()
 	
 	// global Descriptor Set
 	m_descriptorManager.startSets("global")
-		.addPerFrameBufferInfo(m_sceneRessources.globalUniformBuffers, 0, sizeof(UniformBufferCameraObject))
+		.addPerFrameBufferInfo(m_globalUniformBuffers, 0, sizeof(UniformBufferCameraObject))
 		.buildSets();
 
 	// Static Tile Descriptor Set
 	m_descriptorManager.startSets("staticTile")
-		.addImageInfo(m_sceneRessources.staticTileTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			m_textureSamplerNearest)
+		.addImageInfo(m_textures.at(m_activeScene->m_cellGrid[0].m_staticTileTextureRendererID).imgView, 
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, m_textureSamplerNearest)
 		.buildSets();
 	
 	// Player Descriptor Set
 	m_descriptorManager.startSets("player")
-		.addImageInfo(m_sceneRessources.playerTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			m_textureSamplerNearest)
+		.addImageInfo(m_textures.at(m_activeScene->m_player.m_textureID).imgView, 
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, m_textureSamplerNearest)
 		.buildSets();
 }
 
@@ -884,36 +890,26 @@ void Renderer3D::cleanupSceneRessources()
 {
 	vkDestroySampler(m_device, m_textureSamplerNearest, nullptr);
 
-	// Cleanup static tile ressources
-	vkDestroyImageView(m_device, m_sceneRessources.staticTileTextureImageView, nullptr);
-	vkDestroyImage(m_device, m_sceneRessources.staticTileTextureImage, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileTextureImageMemory, nullptr);
-
-	vkDestroyBuffer(m_device, m_sceneRessources.staticTileVertexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileVertexBufferMemory, nullptr);
-	vkDestroyBuffer(m_device, m_sceneRessources.staticTileIndexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.staticTileIndexBufferMemory, nullptr);
-
-	// Cleanup player ressources
-	vkDestroyImageView(m_device, m_sceneRessources.playerTextureImageView, nullptr);
-	vkDestroyImage(m_device, m_sceneRessources.playerTextureImage, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.playerTextureImageMemory, nullptr);
-
-	vkDestroyBuffer(m_device, m_sceneRessources.playerVertexBuffer, nullptr);
-	vkFreeMemory(m_device, m_sceneRessources.playerVertexBufferMemory, nullptr);
-	
-	for (size_t i = 0; i < MAX_NUMBER_OF_PLAYER_SPRITES; i++)
+	// Cleanup Textures
+	for (auto& texture : m_textures)
 	{
-		vkDestroyBuffer(m_device, m_sceneRessources.playerIndexBuffers[i], nullptr);
-		vkFreeMemory(m_device, m_sceneRessources.playerIndexBufferMemories[i], nullptr);
+		m_givenIDs.erase(texture.first);
 	}
+	m_textures.clear();
+
+	// Cleanup Models
+	for (auto& model : m_models)
+	{
+		m_givenIDs.erase(model.first);
+	}
+	m_models.clear();
 
 	m_descriptorManager.cleanup();
 	
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		vkDestroyBuffer(m_device, m_sceneRessources.globalUniformBuffers[i], nullptr);
-		vkFreeMemory(m_device, m_sceneRessources.globalUniformBuffersMemory[i], nullptr);
+		vkDestroyBuffer(m_device, m_globalUniformBuffers[i], nullptr);
+		vkFreeMemory(m_device, m_globalUniformBuffersMemory[i], nullptr);
 	}
 
 	vkDestroyPipeline(m_device, m_staticPipelineRes.graphicsPipeline, nullptr);
@@ -1154,21 +1150,18 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 	*/
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.graphicsPipeline);
-		VkBuffer vertexBuffers[] = { m_sceneRessources.staticTileVertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.staticTileIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		m_models.at(m_activeScene->m_cellGrid[0].m_staticTileModelRendererID).bind(commandBuffer);
 		// Bind descriptor sets (Global is set zero, object related stuff is set one)
 		std::array<VkDescriptorSet, 2> descriptorSetsToBind =
 			{ m_descriptorManager.getDescriptorSet("global", m_currentFrame),
 			m_descriptorManager.getDescriptorSet("staticTile", m_currentFrame) };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_staticPipelineRes.pipelineLayout,
 			0, 2, descriptorSetsToBind.data(), 0, nullptr);
-		vkCmdDrawIndexed(commandBuffer, (uint32_t)m_sceneRessources.staticTileIndices.size(), 1, 0, 0, 0);
+		m_models.at(m_activeScene->m_cellGrid[0].m_staticTileModelRendererID).draw(commandBuffer);
 	}
 
 	/*
-	Draw actors with the actors with the actor object pipeline
+	Draw actors with the actors of the actor object pipeline
 	player, enemies and actor objects are actors
 	*/
 	{
@@ -1178,11 +1171,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 		playerPushConstants.rotate = static_cast<glm::float32_t>(m_activeScene->m_player.m_rotationAngle);
 		vkCmdPushConstants(commandBuffer, m_actorPipelineRes.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
 			sizeof(ModelMatrixPushConstant), &playerPushConstants);
-		VkBuffer vertexBuffers[] = { m_sceneRessources.playerVertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, m_sceneRessources.playerIndexBuffers[m_activeScene->m_player.m_spriteIndex],
-			0, VK_INDEX_TYPE_UINT16);
+		m_models.at(m_activeScene->m_player.m_modelID).bind(commandBuffer);
 		// Bind descriptor sets (Global is set zero, object related stuff is set one)
 		// However if another actor is drawn only object related set has to be bound again.
 		std::array<VkDescriptorSet, 2> descriptorSetsToBind = 
@@ -1190,7 +1179,7 @@ void Renderer3D::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t ima
 			m_descriptorManager.getDescriptorSet("player", m_currentFrame) };
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_actorPipelineRes.pipelineLayout,
 			0, 2, descriptorSetsToBind.data(), 0, nullptr);
-		vkCmdDrawIndexed(commandBuffer, (uint32_t)(m_sceneRessources.playerIndices.size() / MAX_NUMBER_OF_PLAYER_SPRITES), 1, 0, 0, 0);
+		m_models.at(m_activeScene->m_player.m_modelID).draw(commandBuffer);
 	}
 
 	vkCmdEndRenderPass(commandBuffer);
@@ -1641,5 +1630,5 @@ void Renderer3D::updateUniformBuffer(uint32_t currentImage)
 	ubo.view = m_activeScene->m_activeCamera.getView();
 	ubo.proj = m_activeScene->m_activeCamera.getProjection();
 	ubo.proj[1][1] *= -1;
-	memcpy(m_sceneRessources.globalUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+	memcpy(m_globalUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }

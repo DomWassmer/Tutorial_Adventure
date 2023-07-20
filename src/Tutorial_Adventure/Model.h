@@ -13,7 +13,7 @@ class Renderer3D;
 
 class Model3D {
 public:
-	Model3D(Renderer3D& renderer, const std::vector<Vertex>& vertices, const std::vector<Vertex>& indices);
+	Model3D(Renderer3D& renderer, const std::vector<Vertex>& vertices, const std::vector<uint16_t>& indices);
 	~Model3D();
 
 	/* Should not be copied only moved */

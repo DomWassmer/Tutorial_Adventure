@@ -2,7 +2,7 @@
 
 #include "Renderer3D.h"
 
-Model3D::Model3D(Renderer3D& renderer,const std::vector<Vertex>& vertices,const std::vector<Vertex>& indices) 
+Model3D::Model3D(Renderer3D& renderer,const std::vector<Vertex>& vertices,const std::vector<uint16_t>& indices) 
 	: r_renderer(renderer)
 {
 	m_vertexCount = static_cast<uint32_t>(vertices.size());
@@ -31,5 +31,5 @@ void Model3D::bind(VkCommandBuffer commandBuffer)
 
 void Model3D::draw(VkCommandBuffer commandBuffer)
 {
-	vkCmdDrawIndexed(commandBuffer, m_indexCount, 1, 0, 0, 0)
+	vkCmdDrawIndexed(commandBuffer, m_indexCount, 1, 0, 0, 0);
 }
